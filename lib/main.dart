@@ -1,3 +1,6 @@
+import 'package:finance_tracker/data/account_provider.dart';
+import 'package:finance_tracker/data/recurring_transactions.dart';
+import 'package:finance_tracker/data/transactions_provider.dart';
 import 'package:finance_tracker/pages/accounts_page.dart';
 import 'package:finance_tracker/pages/home_page.dart';
 import 'package:finance_tracker/pages/statistics_page.dart';
@@ -7,9 +10,14 @@ import 'package:provider/provider.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => ThemeProvider(),
-      child: const MyApp(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        ChangeNotifierProvider(create: (context) => AccountProvider()),
+        ChangeNotifierProvider(create: (context) => TransactionsProvider()),
+        ChangeNotifierProvider(create: (context) => RecurringTransactionsProvider()),
+        ],
+        child: const MyApp(),
     ),
   );
 }
