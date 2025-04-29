@@ -99,17 +99,29 @@ class AccountProvider with ChangeNotifier {
      }
    }
 
-  Future<bool> deleteAccount(int id) async {
-    // ... (existing delete logic) ...
+   Future<bool> deleteAccount(int id) async {
+    _setError(null); // Clear previous errors before starting
+
     try {
-      await _dbService.deleteAccount(id);
-      // Success! Refresh accounts and balances
-      await fetchAccounts(); // Re-fetch all data
-      return true;
+      // Attempt to delete using the database service
+      int rowsAffected = await _dbService.deleteAccount(id);
+
+      if (rowsAffected > 0) {
+        print("Account $id deleted from DB. Refreshing local data.");
+
+        _accounts.removeWhere((acc) => acc.id == id);
+        _accountBalances.remove(id); 
+        notifyListeners(); 
+        return true; 
+      } else {
+        print("Delete operation affected 0 rows for account ID $id.");
+        _setError("Account not found or already deleted.");
+        return false;
+      }
     } catch (e) {
-       print("Error deleting account: $e");
-       _setError("Failed to delete account.");
-       return false;
+      print("Error deleting account in provider: $e");
+      _setError("Failed to delete account. Please try again.");
+      return false; 
     }
   }
 

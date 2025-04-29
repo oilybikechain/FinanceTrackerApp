@@ -1,5 +1,5 @@
 import 'package:finance_tracker/data/account_provider.dart';
-import 'package:finance_tracker/data/recurring_transactions.dart';
+import 'package:finance_tracker/data/recurring_transactions_provider.dart';
 import 'package:finance_tracker/data/transactions_provider.dart';
 import 'package:finance_tracker/pages/accounts_page.dart';
 import 'package:finance_tracker/pages/home_page.dart';
