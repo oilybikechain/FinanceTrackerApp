@@ -8,7 +8,7 @@ class Transactions { // <--- Renamed
   final TransactionType type;
   final double amount;
   final DateTime timestamp;
-  final String? description;
+  final String description;
   final int? transferPeerTransactionId;
 
   // --- Constructor name matches class ---
@@ -18,7 +18,7 @@ class Transactions { // <--- Renamed
     required this.type,
     required this.amount,
     required this.timestamp,
-    this.description,
+    required this.description,
     this.transferPeerTransactionId,
   });
 
@@ -48,7 +48,7 @@ class Transactions { // <--- Renamed
       type: transactionType,
       amount: map['amount'] as double,
       timestamp: DateTime.parse(map['timestamp'] as String),
-      description: map['description'] as String?,
+      description: map['description'] as String,
       transferPeerTransactionId: map['transfer_peer_transaction_id'] as int?,
     );
   }
@@ -72,7 +72,7 @@ class Transactions { // <--- Renamed
       type: type ?? this.type,
       amount: amount ?? this.amount,
       timestamp: timestamp ?? this.timestamp,
-      description: setDescriptionNull ? null : (description ?? this.description),
+      description: description ?? this.description,
       transferPeerTransactionId: setTransferPeerNull ? null : (transferPeerTransactionId ?? this.transferPeerTransactionId),
     );
   }

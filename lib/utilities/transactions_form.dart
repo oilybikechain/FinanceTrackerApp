@@ -1,204 +1,129 @@
 import 'package:flutter/material.dart';
-import 'package:finance_tracker/data/accounts_class.dart';
+import 'package:finance_tracker/data/transactions_class.dart';
 import 'package:finance_tracker/data/recurring_transactions_class.dart';
 import 'package:flutter/services.dart'; // For TextInputFormatters
 import 'package:finance_tracker/data/enums.dart'; // Import your enums
-import 'package:finance_tracker/data/account_provider.dart';
+import 'package:finance_tracker/data/transactions_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:finance_tracker/data/recurring_transactions_provider.dart';
 import 'package:intl/intl.dart';
 
-class AccountForm extends StatefulWidget {
-  final Account? existingAccount;
+class TransactionsForm
+    extends StatefulWidget {
+  final Transactions? existingTransaction;
 
-  const AccountForm({
+  const TransactionsForm({
     super.key,
-    this.existingAccount,
+    this.existingTransaction,
   });
 
   @override
-  State<AccountForm> createState() =>
-      _AccountFormState();
+  State<TransactionsForm> createState() =>
+      _TransactionsFormState();
 }
 
-class _AccountFormState
-    extends State<AccountForm> {
-  //Form Key
+class _TransactionsFormState
+    extends State<TransactionsForm> {
   final _formkey = GlobalKey<FormState>();
 
-  //Controllers
-  final _nameController =
-      TextEditingController();
-  final _initialBalanceController =
-      TextEditingController();
-  final _interestRateController =
+  final _transactionDescription =
       TextEditingController();
 
-  //Other Variables
+  final _amountController = TextEditingController();
+
+  double _dollarValue = 0;
+  double _centValue = 0;
+
   bool _isEditMode = false;
   DateTime _createdAt = DateTime.now();
+  TransactionType? _transactionType;
+  int _transactionAccountId = 1;
 
-  // Enum for selected frequency
-  Frequency? _selectedInterestPeriod;
-
-  // init state method: What happens when it detects an initial account
   @override
   void initState() {
-    //Must call super.initState whenever initState is being overridden
     super.initState();
 
-    //If initialAccount is detected it means the form is in edit mode
-    if (widget.existingAccount != null) {
+    if (widget.existingTransaction != null) {
       _isEditMode = true;
-      final account =
-          widget.existingAccount!;
+      final transaction =
+          widget.existingTransaction!;
 
-      //Prefill controllers with existing account data
-      _nameController.text = account.name;
+      _transactionDescription.text =
+          transaction.description;
+        
+      double initialAmount = transaction.amount.abs();
 
-      _initialBalanceController
-          .text = account.initialBalance
-          .toStringAsFixed(2);
+      _amountController.text =
+          transaction.amount.toString(2);
 
-      if (account.interestRate > 0) {
-        _interestRateController
-            .text = account.interestRate
-            .toStringAsFixed(2);
-      }
+      _dollarValue = initialAmount.floorToDouble(); // Get the whole dollar part
+      _centValue = ((initialAmount - _dollarValue) * 100);
 
-      if (account.interestPeriod != null) {
-        _selectedInterestPeriod = Frequency
-            .values
-            .fromName(
-              account.interestPeriod,
-            );
-      }
+      _transactionType = transaction.type;
 
-      _createdAt = account.createdAt;
+      _transactionAccountId =
+          transaction.id!;
+
+      _createdAt = transaction.timestamp;
+      //TODO fetch account name and fill up the box
+      //TODO Add support for transfers and recurring transactions.
+    } else {
+      _amountController.text = "0.00";
     }
+
+    _amountController.addListener(_syncSlidersFromTextField);
   }
 
-  //Method to save
-  Future<void> _submitForm() async {
-    print("Save button pressed!");
-    //Check if form is valid
-    final isValid =
-        _formkey.currentState?.validate() ??
-        false;
-
-    if (!isValid) {
-      print("form is invalid");
-      return;
-      //TODO pop up for invalid form
-    }
-
-    print(
-      "Form is valid, proceeding to save...",
-    );
-
-    // 3. Prepare data (as before)
-    final name = _nameController.text;
-    final initialBalance =
-        double.tryParse(
-          _initialBalanceController.text,
-        ) ??
-        0.0;
-    final interestRate =
-        double.tryParse(
-          _interestRateController.text,
-        ) ??
-        0.0;
-    final String? interestPeriodString =
-        (interestRate > 0 &&
-                _selectedInterestPeriod !=
-                    null)
-            ? _selectedInterestPeriod!.name
-            : null;
-
-    // 4. Store context-dependent objects BEFORE await
-    // This prevents using 'context' after an async gap, which is unsafe.
-    final accountProvider =
-        Provider.of<AccountProvider>(
-          context,
-          listen: false,
-        );
-    final navigator = Navigator.of(
-      context,
-    ); // Store Navigator
-    final messenger = ScaffoldMessenger.of(
-      context,
-    ); // Store ScaffoldMessenger
-    final theme = Theme.of(
-      context,
-    ); // Store Theme
-
-    // Variable to hold the result from the provider call
-    bool success = false;
-
-    // 5. Call the appropriate provider method (NO outer try-catch here)
-    if (_isEditMode) {
-      print(
-        "Updating account ID: ${widget.existingAccount!.id}",
-      );
-      final updatedAccount = widget
-          .existingAccount!
-          .copyWith(
-            name: name,
-            // Don't update initialBalance or createdAt in edit mode usually
-            interestRate: interestRate,
-            interestPeriod:
-                interestPeriodString,
-            setInterestPeriodNull:
-                interestRate <= 0 ||
-                _selectedInterestPeriod ==
-                    null,
-          );
-      // Await the result directly from the provider
-      success = await accountProvider
-          .updateAccount(updatedAccount);
-    } else {
-      print("Creating new account");
-      final newAccount = Account(
-        name: name,
-        initialBalance: initialBalance,
-        createdAt: _createdAt,
-        interestRate: interestRate,
-        interestPeriod: interestPeriodString,
-      );
-      // Await the result directly from the provider
-      success = await accountProvider
-          .addAccount(newAccount);
-    }
-
-    if (!mounted) {
-      return;
-    }
-
-    if (success) {
-      print("Operation successful, popping form.");
-      navigator.pop(true); 
-    } else {
-      print("Operation failed (provider returned false).");
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(accountProvider.error ?? 'Operation failed.'), 
-          backgroundColor: theme.colorScheme.error, 
-        ),
-      );
-    }
+  Future<void>  _submitForm() async {
+    //TODO
   }
 
-  //Method to delete controllers
   @override
   void dispose() {
-    print(
-      "Disposing AccountForm controllers",
-    );
-    _nameController.dispose();
-    _initialBalanceController.dispose();
-    _interestRateController.dispose();
-    super.dispose();
+    //TODO
   }
+
+
+  void _updateTextFieldFromSliders() {
+    double totalAmount = _dollarValue + (_centValue / 100.0);
+    _amountController.removeListener(_syncSlidersFromTextField); 
+    _amountController.text = totalAmount.toStringAsFixed(2);
+    _amountController.addListener(_syncSlidersFromTextField);
+  }
+
+  //Method to update sliders FROM text field 
+  void _syncSlidersFromTextField() {
+    double? amountFromText = double.tryParse(_amountController.text);
+    if (amountFromText != null) {
+       amountFromText = amountFromText.abs();
+       double newDollarValue = amountFromText.floorToDouble();
+       double newCentValue = ((amountFromText - newDollarValue) * 100);
+
+
+       if (newCentValue >= 0 && newCentValue <= 99) {
+         bool changed = false;
+         if (_dollarValue != newDollarValue) {
+           _dollarValue = newDollarValue;
+           changed = true;
+         }
+         if (_centValue != newCentValue) {
+           _centValue = newCentValue;
+           changed = true;
+         }
+
+         if (changed) {
+           setState(() {});
+         }
+       } 
+    } else {      
+      setState(() {
+        _dollarValue = 99;
+        _centValue = 99;
+      });
+    }
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -206,12 +131,6 @@ class _AccountFormState
         Theme.of(context).textTheme;
     final colorScheme =
         Theme.of(context).colorScheme;
-    final bool showInterestPeriod =
-        (double.tryParse(
-              _interestRateController.text,
-            ) ??
-            0) >
-        0;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -226,20 +145,20 @@ class _AccountFormState
           children: [
             Text(
               _isEditMode
-                  ? "Edit Account"
-                  : 'Create New Account',
+                  ? "Edit Transaction"
+                  : 'Create New Transaction',
               style: textTheme.headlineSmall,
             ),
 
             const SizedBox(height: 20),
 
             TextFormField(
-              controller: _nameController,
+              controller: _transactionDescription,
 
               decoration: InputDecoration(
-                labelText: 'Account Name',
+                labelText: 'Transaction Name',
                 hintText:
-                    'E.g. Savings, Spendings',
+                    'E.g. Food, Transport',
                 border: OutlineInputBorder(),
               ),
 
@@ -249,13 +168,31 @@ class _AccountFormState
               validator: (value) {
                 if (value == null ||
                     value.trim().isEmpty) {
-                  return 'Please enter an account name.';
+                  return 'Please enter a transaction name.';
                 }
                 return null;
               },
             ),
 
             const SizedBox(height: 20),
+
+            TextFormField(
+              controller: _amountController,
+              decoration: const InputDecoration(
+                prefixText: '\$',
+                border: OutlineInputBorder(),
+                hintText: '0.00',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+              ],
+              validator: (value) {
+                if (val)
+              },
+            )
+
+            Slider(value: , onChanged: onChanged),
 
             TextFormField(
               controller:
