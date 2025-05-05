@@ -1,3 +1,5 @@
+import 'package:finance_tracker/data/account_provider.dart';
+import 'package:finance_tracker/data/accounts_class.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
 import 'package:finance_tracker/data/recurring_transactions_class.dart';
@@ -26,7 +28,7 @@ class _TransactionsFormState
     extends State<TransactionsForm> {
   final _formkey = GlobalKey<FormState>();
 
-  final _transactionDescription =
+  final _transactionDescriptionController =
       TextEditingController();
 
   final _amountController = TextEditingController();
@@ -36,39 +38,49 @@ class _TransactionsFormState
 
   bool _isEditMode = false;
   DateTime _createdAt = DateTime.now();
-  TransactionType? _transactionType;
-  int _transactionAccountId = 1;
+  TransactionType? _selectedtransactionType;
+  int? _selectedAccountId;
 
   @override
   void initState() {
     super.initState();
+
+    final accountProvider = Provider.of<AccountProvider>(context, listen: false);
+    final accounts = accountProvider.accounts;
 
     if (widget.existingTransaction != null) {
       _isEditMode = true;
       final transaction =
           widget.existingTransaction!;
 
-      _transactionDescription.text =
+      _transactionDescriptionController.text =
           transaction.description;
         
       double initialAmount = transaction.amount.abs();
 
       _amountController.text =
-          transaction.amount.toString(2);
+          transaction.amount.toString();
 
       _dollarValue = initialAmount.floorToDouble(); // Get the whole dollar part
       _centValue = ((initialAmount - _dollarValue) * 100);
 
-      _transactionType = transaction.type;
+      _selectedtransactionType = transaction.type;
 
-      _transactionAccountId =
-          transaction.id!;
+      _selectedAccountId =
+          transaction.accountId;
 
       _createdAt = transaction.timestamp;
-      //TODO fetch account name and fill up the box
+
       //TODO Add support for transfers and recurring transactions.
     } else {
       _amountController.text = "0.00";
+      _selectedtransactionType = TransactionType.expense;
+      _selectedAccountId = null;
+      if (accounts.isNotEmpty) {
+        _selectedAccountId = accounts.first.id;
+      } else {
+        _selectedAccountId = null;
+      }
     }
 
     _amountController.addListener(_syncSlidersFromTextField);
@@ -80,7 +92,11 @@ class _TransactionsFormState
 
   @override
   void dispose() {
-    //TODO
+    print("Disposing TransactionsForm controllers");
+    _transactionDescriptionController.dispose();
+    _amountController.removeListener(_syncSlidersFromTextField); 
+    _amountController.dispose();
+    super.dispose();
   }
 
 
@@ -131,6 +147,8 @@ class _TransactionsFormState
         Theme.of(context).textTheme;
     final colorScheme =
         Theme.of(context).colorScheme;
+    final accounts = Provider.of<AccountProvider>(context, listen: false).accounts;
+
 
     return Padding(
       padding: EdgeInsets.only(
@@ -152,8 +170,94 @@ class _TransactionsFormState
 
             const SizedBox(height: 20),
 
+            DropdownButtonFormField<int>( // Specify type as int (for account ID)
+              value: _selectedAccountId, // Bind to state variable holding the ID
+              decoration: const InputDecoration(
+                labelText: 'Account',
+                border: OutlineInputBorder(),
+              ),
+              // Create items from the accounts list fetched from the provider
+              items: accounts.map((Account account) { // Iterate over Account objects
+                return DropdownMenuItem<int>(
+                  value: account.id, // The value of the item is the account's ID
+                  child: Text(account.name), // The text shown is the account's name
+                );
+              }).toList(), // Convert the mapped items to a List
+              // Update state when user selects a different account
+              onChanged: (int? newValue) {
+                setState(() {
+                  _selectedAccountId = newValue;
+                });
+              },
+              // Validation: Ensure an account is selected
+              validator: (value) {
+                if (value == null) {
+                  return 'Please select an account.';
+                }
+                return null; // Valid
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            SegmentedButton(
+              segments: const<ButtonSegment<TransactionType>>[
+                ButtonSegment(
+                  value: TransactionType.expense,
+                  label: Text('Expense')
+                ),
+                ButtonSegment(
+                  value: TransactionType.income,
+                  label: Text("Income")
+                ),
+              ],
+
+              selected: <TransactionType>{
+                if (_selectedtransactionType != null) _selectedtransactionType!
+              },
+
+              onSelectionChanged: (Set<TransactionType> newSelection) {
+                setState(() {
+                  _selectedtransactionType = newSelection.firstOrNull;
+                });
+              },
+
+              style: ButtonStyle(
+                 backgroundColor: WidgetStateProperty.resolveWith<Color?>(
+                   (Set<WidgetState> states) {
+                     if (states.contains(WidgetState.selected)) {
+                       
+                       if (_selectedtransactionType == TransactionType.expense) {
+                         return Colors.red; 
+                       } else if (_selectedtransactionType == TransactionType.income) {
+                         return Colors.green; 
+                       }
+                     }
+                     return null; // Use default background color otherwise (usually transparent or theme-based)
+                   },
+                 ),
+
+
+                 foregroundColor: WidgetStateProperty.resolveWith<Color?>(
+                    (Set<WidgetState> states) {
+                      final theme = Theme.of(context); 
+                      if (states.contains(WidgetState.selected)) {
+                        if (_selectedtransactionType == TransactionType.expense) {
+                          return Colors.black; 
+                        } else if (_selectedtransactionType == TransactionType.income) {
+                          return Colors.black; 
+                        }
+                      }
+                      return theme.colorScheme.onSurface;
+                    }
+                 ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
             TextFormField(
-              controller: _transactionDescription,
+              controller: _transactionDescriptionController,
 
               decoration: InputDecoration(
                 labelText: 'Transaction Name',
@@ -188,181 +292,56 @@ class _TransactionsFormState
                 FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
               ],
               validator: (value) {
-                if (val)
-              },
-            )
-
-            Slider(value: , onChanged: onChanged),
-
-            TextFormField(
-              controller:
-                  _initialBalanceController,
-              decoration: InputDecoration(
-                labelText: 'Initial Balance',
-                hintText: '0.00',
-                prefixText: '\$ ',
-                border: OutlineInputBorder(),
-              ),
-
-              //Only allow numbers and decimals
-              keyboardType:
-                  const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                  RegExp(r'^\d+\.?\d{0,2}'),
-                ),
-              ],
-
-              textInputAction:
-                  TextInputAction.next,
-
-              validator: (value) {
-                if (value == null ||
-                    value.isEmpty) {
-                  _initialBalanceController
-                      .text = "0";
+                if (value == null|| value.isEmpty) {
+                  return 'Please enter an amount.';
                 }
-                if (value != null &&
-                    value.isNotEmpty &&
-                    double.tryParse(value) ==
-                        null) {
-                  return 'Please enter a valid number.';
+                final amount = double.tryParse(value);
+                if (amount == null) {
+                 return 'Please enter a valid number.';
                 }
-                return null; // Return null if valid
-              },
-            ),
-
-            const SizedBox(height: 20),
-
-            TextFormField(
-              controller:
-                  _interestRateController,
-
-              decoration: const InputDecoration(
-                labelText:
-                    'Annual Interest Rate (%)',
-                hintText: '0.0',
-                suffixText: '%',
-                border: OutlineInputBorder(),
-              ),
-
-              keyboardType:
-                  const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                  RegExp(r'^\d+\.?\d{0,2}'),
-                ),
-              ],
-
-              textInputAction:
-                  TextInputAction.next,
-              validator: (value) {
-                if (value == null ||
-                    value.isEmpty) {
-                  return null;
+                if (amount <= 0) { // Ensure amount is positive (sign handled by type?)
+                    return 'Amount must be positive.';
                 }
-
-                if (double.tryParse(value) ==
-                    null) {
-                  return 'Please enter a valid number.';
-                }
-
-                return null;
-              },
-              onChanged:
-                  (value) => setState(() {}),
-            ),
-
-            const SizedBox(height: 20),
-
-            if (showInterestPeriod) // Only show dropdown if rate > 0
-              DropdownButtonFormField<
-                Frequency
-              >(
-                value:
-                    _selectedInterestPeriod, // Current selected value from state
-                decoration: const InputDecoration(
-                  labelText:
-                      'Interest Period', // Label for the dropdown
-                  border:
-                      OutlineInputBorder(),
-                ),
-                // Create dropdown items from the Frequency enum values
-                items:
-                    Frequency.values.map((
-                      frequency,
-                    ) {
-                      return DropdownMenuItem(
-                        value:
-                            frequency, // The enum value itself
-                        // Display user-friendly text (e.g., capitalize 'daily' to 'Daily')
-                        child: Text(
-                          frequency.name[0]
-                                  .toUpperCase() +
-                              frequency.name
-                                  .substring(
-                                    1,
-                                  ),
-                        ),
-                      );
-                    }).toList(),
-                // Update the state variable when a new item is selected
-                onChanged: (
-                  Frequency? newValue,
-                ) {
-                  setState(() {
-                    _selectedInterestPeriod =
-                        newValue;
-                  });
+                return null; // Valid
                 },
-                // Make selection required ONLY if the rate is > 0 (i.e., if dropdown is visible)
-                validator: (value) {
-                  if (showInterestPeriod &&
-                      value == null) {
-                    return 'Please select an interest period.';
-                  }
-                  return null; // Valid
-                },
-              ),
-
-            if (showInterestPeriod)
-              const SizedBox(height: 24),
-
-            Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  child: const Text(
-                    'Cancel',
-                  ),
-                  onPressed: () {
-                    Navigator.of(
-                      context,
-                    ).pop();
-                  },
-                ),
-                const SizedBox(width: 8),
-
-                ElevatedButton(
-                  onPressed: _submitForm,
-
-                  child: Text(
-                    _isEditMode
-                        ? 'Save Changes'
-                        : 'Create Account',
-                  ),
-                ),
-              ],
             ),
-            const SizedBox(
-              height: 20,
-            ), // Extra padding at bottom
+
+            Text('Dollars: ${_dollarValue.toInt()}'),
+            Slider(
+              value: _dollarValue,
+              min: 0,
+              max: 100,
+              divisions: 100,
+              label: _dollarValue.round().toString(), 
+              onChanged: (newValue) {
+                setState(() {
+                  _dollarValue = newValue.floorToDouble();
+                });
+                _updateTextFieldFromSliders();
+              }
+            ),
+
+            const SizedBox(height: 8,),
+
+            Text('Cents: ${_centValue.toInt()}'),
+
+            Slider(
+              value: _centValue,
+              min: 0,
+              max: 99,
+              divisions: 99,
+              label: _centValue.round().toString(), 
+              onChanged: (newValue) {
+                setState(() {
+                  _centValue = newValue.roundToDouble();
+                });
+
+                _updateTextFieldFromSliders();
+              }
+            ),
+
+            const SizedBox(height:20),
+
           ],
         ),
       ),
