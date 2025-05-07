@@ -1,5 +1,6 @@
 import 'package:finance_tracker/data/account_provider.dart';
 import 'package:finance_tracker/data/accounts_class.dart';
+import 'package:finance_tracker/data/transactions_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
 import 'package:finance_tracker/data/recurring_transactions_class.dart';
@@ -10,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:finance_tracker/data/recurring_transactions_provider.dart';
 import 'package:intl/intl.dart';
 
+//TODO, add support for changing date
 class TransactionsForm
     extends StatefulWidget {
   final Transactions? existingTransaction;
@@ -87,8 +89,83 @@ class _TransactionsFormState
   }
 
   Future<void>  _submitForm() async {
-    //TODO
+    final isValid = _formkey.currentState?.validate() ??
+    false;
+
+    if (!isValid) {
+      print("form is invalid");
+      //TODO Show message in snackbar
+      return;
+    }
+
+    final description = _transactionDescriptionController.text;
+    final amount = double.tryParse(_amountController.text,) ?? 0.0;
+    final transactionType = _selectedtransactionType;
+    final account = _selectedAccountId;
+    
+    final transactionsProvider = Provider.of<TransactionsProvider>(context, listen: false, );
+    final navigator = Navigator.of(
+      context,
+    ); // Store Navigator
+    final messenger = ScaffoldMessenger.of(
+      context,
+    ); // Store ScaffoldMessenger
+    final theme = Theme.of(
+      context,
+    );
+    double finalAmount = (transactionType == TransactionType.income || transactionType == TransactionType.interest)
+                     ? amount.abs()
+                     : -amount.abs();
+
+    bool success = false;
+
+     if (_isEditMode) {
+      print(
+        "Updating account ID: ${widget.existingTransaction!.id}",
+      );
+      final updatedTransaction = widget
+          .existingTransaction!
+          .copyWith(
+            description: description,
+            amount: finalAmount,
+            accountId: account,
+            type: transactionType,
+          );
+      // Await the result directly from the provider
+      success = await transactionsProvider
+          .updateTransaction(updatedTransaction);
+    } else {
+      print("Creating new Transaction");
+      final newTransaction = Transactions(
+        description: description,
+        amount: finalAmount,
+        accountId: account!,
+        type: transactionType!,
+        timestamp: _createdAt,
+      );
+      // Await the result directly from the provider
+      success = await transactionsProvider
+          .addTransaction(newTransaction);
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    if (success) {
+      print("Operation successful, popping form.");
+      navigator.pop(true); 
+    } else {
+      print("Operation failed (provider returned false).");
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(transactionsProvider.error ?? 'Operation failed.'), 
+          backgroundColor: theme.colorScheme.error, 
+        ),
+      );
+    }
   }
+
 
   @override
   void dispose() {
@@ -342,6 +419,38 @@ class _TransactionsFormState
 
             const SizedBox(height:20),
 
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  child: const Text(
+                    'Cancel',
+                  ),
+                  onPressed: () {
+                    Navigator.of(
+                      context,
+                    ).pop();
+                  },
+                ),
+
+                const SizedBox(width: 8),
+
+                ElevatedButton(
+                  onPressed: _submitForm,
+
+                  child: Text(
+                    _isEditMode
+                        ? 'Save Changes'
+                        : 'Create Transaction',
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(
+              height: 20,
+            ), // Extra padding at bottom
           ],
         ),
       ),

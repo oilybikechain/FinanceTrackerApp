@@ -22,6 +22,13 @@ enum Frequency {
   yearly,
 }
 
+enum TimePeriod {
+  day,
+  week,
+  month,
+  year
+}
+
 // Helper extension for robust enum parsing from String (optional but recommended)
 extension EnumParser<T extends Enum> on List<T> {
   T? fromName(String? name, {T? defaultValue}) {
