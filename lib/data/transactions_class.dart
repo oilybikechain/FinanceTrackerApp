@@ -51,7 +51,7 @@ class Transactions { // <--- Renamed
       description: map['description'] as String,
       transferPeerTransactionId: map['transfer_peer_transaction_id'] as int?,
     );
-  }
+  } 
 
   // --- copyWith method name and return type match class ---
   Transactions copyWith({ // <--- Renamed return type
