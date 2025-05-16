@@ -126,6 +126,7 @@ class _HomePageState extends State<HomePage> {
     switch (_selectedTimePeriod) {
       case TimePeriod.day:
         startDate = DateTime(now.year, now.month, now.day);
+        break;
       case TimePeriod.week:
         startDate = now.subtract(Duration(days: now.weekday - 1));
         startDate = DateTime(startDate.year, startDate.month, startDate.day);
@@ -151,6 +152,8 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final transactionsProvider = Provider.of<TransactionsProvider>(context);
+    final accountProvider = context.watch<AccountProvider>();
+
     return Scaffold(
       appBar: AppBar(title: const Text('Homepage')),
       drawer: const AppDrawer(), // Use the reusable drawer widget here!
@@ -279,6 +282,13 @@ class _HomePageState extends State<HomePage> {
                       itemBuilder: (ctx, index) {
                         final transaction =
                             transactionsProvider.transactions[index];
+
+                        final Account associatedAccount = accountProvider
+                            .accounts
+                            .firstWhere(
+                              (acc) => acc.id == transaction.accountId,
+                            );
+
                         // --- Return your TransactionsTile widget ---
                         return TransactionsTile(
                           key: ValueKey(
@@ -293,6 +303,7 @@ class _HomePageState extends State<HomePage> {
                             // Call the method to handle deletion
                             _onDelete(transactionToDelete);
                           },
+                          accountName: associatedAccount.name,
                         );
                         // --- ---
                       },

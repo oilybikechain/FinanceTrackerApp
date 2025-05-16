@@ -30,6 +30,7 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
   double _dollarValue = 0;
   double _centValue = 0;
+  double _maxDollarSliderValue = 100;
 
   bool _isEditMode = false;
   DateTime _createdAt = DateTime.now();
@@ -178,6 +179,10 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
       if (newCentValue >= 0 && newCentValue <= 99) {
         bool changed = false;
+        if (newDollarValue > _maxDollarSliderValue) {
+          _maxDollarSliderValue = newDollarValue;
+          changed = true;
+        }
         if (_dollarValue != newDollarValue) {
           _dollarValue = newDollarValue;
           changed = true;
@@ -193,8 +198,9 @@ class _TransactionsFormState extends State<TransactionsForm> {
       }
     } else {
       setState(() {
-        _dollarValue = 99;
-        _centValue = 99;
+        _dollarValue = 0;
+        _centValue = 0;
+        _maxDollarSliderValue = 100;
       });
     }
   }
@@ -372,8 +378,8 @@ class _TransactionsFormState extends State<TransactionsForm> {
             Slider(
               value: _dollarValue,
               min: 0,
-              max: 100,
-              divisions: 100,
+              max: _maxDollarSliderValue,
+              divisions: _maxDollarSliderValue.toInt(),
               label: _dollarValue.round().toString(),
               onChanged: (newValue) {
                 setState(() {
