@@ -262,7 +262,7 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
-          const Divider(), // Separator
+          const Divider(height: 30), // Separator
           // --- Display Fetched Transactions ---
           Expanded(
             // Use Expanded to make the list take remaining space
