@@ -24,6 +24,8 @@ class AccountProvider with ChangeNotifier {
       print("Error fetching accounts or balances: $e");
       _accounts = [];
       _accountBalances = {};
+    } finally {
+      notifyListeners();
     }
   }
 

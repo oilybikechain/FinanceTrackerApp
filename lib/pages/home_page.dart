@@ -8,6 +8,7 @@ import 'package:finance_tracker/utilities/transactions_form.dart';
 import 'package:finance_tracker/utilities/transactions_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -145,7 +146,8 @@ class _HomePageState extends State<HomePage> {
     await transactionsProvider.fetchTransactions(
       accountIds: accountIdsToFetch,
       startDate: startDate,
-      endDate: endDate, // Fetch up to the end of the selected period's "today"
+      endDate: endDate,
+      periodForChart: _selectedTimePeriod,
     );
   }
 
@@ -153,6 +155,10 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final transactionsProvider = Provider.of<TransactionsProvider>(context);
     final accountProvider = context.watch<AccountProvider>();
+    final List<ChartDataPoint> chartPoints = transactionsProvider.chartData;
+    final double maxYValueForChart = transactionsProvider.maxChartYValue;
+    print(chartPoints);
+    print(maxYValueForChart);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Homepage')),
@@ -262,8 +268,72 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
-          const Divider(height: 30), // Separator
-          // --- Display Fetched Transactions ---
+
+          const Divider(height: 30),
+
+          Container(
+            height: 200,
+            child: BarChart(
+              BarChartData(
+                maxY: maxYValueForChart,
+                minY: 0,
+                barGroups:
+                    chartPoints.asMap().entries.map((entry) {
+                      int index = entry.key;
+                      ChartDataPoint dataPoint = entry.value;
+
+                      return BarChartGroupData(
+                        x: index,
+                        barRods: [
+                          BarChartRodData(
+                            toY: dataPoint.income,
+                            color: Colors.green,
+                          ),
+                          BarChartRodData(
+                            toY: dataPoint.expense,
+                            color: Colors.red,
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 22,
+                      getTitlesWidget: (double value, TitleMeta meta) {
+                        String text = '';
+                        if (value.toInt() >= 0 &&
+                            value.toInt() < chartPoints.length) {
+                          text = chartPoints[value.toInt()].label;
+                        }
+                        return SideTitleWidget(
+                          meta: meta,
+                          child: Text(
+                            text,
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          const Divider(height: 30),
+
           Expanded(
             // Use Expanded to make the list take remaining space
             child:
