@@ -66,6 +66,10 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
       _createdAt = transaction.timestamp;
 
+      if (initialAmount > 100) {
+        _maxDollarSliderValue = initialAmount;
+      }
+
       //TODO Add support for transfers and recurring transactions.
     } else {
       _amountController.text = "0.00";

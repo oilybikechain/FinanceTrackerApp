@@ -7,6 +7,7 @@ import 'package:finance_tracker/utilities/app_drawer.dart';
 import 'package:finance_tracker/utilities/transactions_form.dart';
 import 'package:finance_tracker/utilities/transactions_tile.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -16,6 +17,8 @@ class HomePage extends StatefulWidget {
   @override
   State<HomePage> createState() => _HomePageState();
 }
+
+typedef DateRange = ({DateTime start, DateTime end});
 
 class _HomePageState extends State<HomePage> {
   void _showTransactionsForm([Transactions? transactionsToEdit]) {
@@ -58,6 +61,7 @@ class _HomePageState extends State<HomePage> {
   TimePeriod _selectedTimePeriod = TimePeriod.day;
   bool _isLoadingAccounts = false;
   List<Account> _accountsForDropdown = [];
+  DateTime _currentReferenceDate = DateTime.now();
 
   @override
   void initState() {
@@ -66,6 +70,52 @@ class _HomePageState extends State<HomePage> {
       _fetchAccountsForDropdown();
       _fetchTransactions();
     });
+  }
+
+  DateRange _getStartEndDate() {
+    DateTime refDate = _currentReferenceDate;
+    DateTime startDate;
+    DateTime endDate;
+    switch (_selectedTimePeriod) {
+      case TimePeriod.day:
+        startDate = DateTime(refDate.year, refDate.month, refDate.day);
+        endDate = DateTime(
+          refDate.year,
+          refDate.month,
+          refDate.day,
+          23,
+          59,
+          59,
+          999,
+        );
+        break;
+      case TimePeriod.week:
+        int currentWeekday = refDate.weekday;
+        startDate = DateTime(
+          refDate.year,
+          refDate.month,
+          refDate.day,
+        ).subtract(Duration(days: currentWeekday - 1));
+        endDate = startDate.add(
+          Duration(
+            days: 6,
+            hours: 23,
+            minutes: 59,
+            seconds: 59,
+            milliseconds: 999,
+          ),
+        );
+        break;
+      case TimePeriod.month:
+        startDate = DateTime(refDate.year, refDate.month, 1);
+        endDate = DateTime(refDate.year, refDate.month + 1, 0, 23, 59, 59, 999);
+        break;
+      case TimePeriod.year:
+        startDate = DateTime(refDate.year, 1, 1);
+        endDate = DateTime(refDate.year, 12, 31, 23, 59, 59, 999);
+        break;
+    }
+    return (start: startDate, end: endDate);
   }
 
   Future<void> _fetchAccountsForDropdown() async {
@@ -120,25 +170,10 @@ class _HomePageState extends State<HomePage> {
     if (_selectedAccountId != null && _selectedAccountId != _allAccountsId) {
       accountIdsToFetch = [_selectedAccountId!];
     }
-    DateTime now = DateTime.now();
-    DateTime startDate;
-    DateTime endDate = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
 
-    switch (_selectedTimePeriod) {
-      case TimePeriod.day:
-        startDate = DateTime(now.year, now.month, now.day);
-        break;
-      case TimePeriod.week:
-        startDate = now.subtract(Duration(days: now.weekday - 1));
-        startDate = DateTime(startDate.year, startDate.month, startDate.day);
-        break;
-      case TimePeriod.month:
-        startDate = DateTime(now.year, now.month, 1);
-        break;
-      case TimePeriod.year:
-        startDate = DateTime(now.year, 1, 1);
-        break;
-    }
+    final dateRange = _getStartEndDate();
+    final DateTime startDate = dateRange.start;
+    final DateTime endDate = dateRange.end;
 
     print(
       "Fetching transactions for Account ID(s): $accountIdsToFetch, Period: $_selectedTimePeriod, Start: $startDate, End: $endDate",
@@ -151,12 +186,112 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _goNextPeriod() {
+    setState(() {
+      switch (_selectedTimePeriod) {
+        case TimePeriod.day:
+          _currentReferenceDate = _currentReferenceDate.add(
+            const Duration(days: 1),
+          );
+          break;
+        case TimePeriod.week:
+          _currentReferenceDate = _currentReferenceDate.add(
+            const Duration(days: 7),
+          );
+          break;
+        case TimePeriod.month:
+          _currentReferenceDate = DateTime(
+            _currentReferenceDate.year,
+            _currentReferenceDate.month + 1,
+            1,
+          );
+          break;
+        case TimePeriod.year:
+          _currentReferenceDate = DateTime(
+            _currentReferenceDate.year + 1,
+            _currentReferenceDate.month,
+            1,
+          );
+          break;
+      }
+    });
+    _fetchTransactions();
+  }
+
+  void _goCurrentDate() {
+    setState(() {
+      _currentReferenceDate = DateTime.now();
+    });
+    _fetchTransactions();
+  }
+
+  void _goPreviousPeriod() {
+    setState(() {
+      switch (_selectedTimePeriod) {
+        case TimePeriod.day:
+          _currentReferenceDate = _currentReferenceDate.subtract(
+            const Duration(days: 1),
+          );
+          break;
+        case TimePeriod.week:
+          _currentReferenceDate = _currentReferenceDate.subtract(
+            const Duration(days: 7),
+          );
+          break;
+        case TimePeriod.month:
+          _currentReferenceDate = DateTime(
+            _currentReferenceDate.year,
+            _currentReferenceDate.month - 1,
+            1,
+          );
+          break;
+        case TimePeriod.year:
+          _currentReferenceDate = DateTime(
+            _currentReferenceDate.year - 1,
+            _currentReferenceDate.month,
+            1,
+          );
+          break;
+      }
+    });
+    _fetchTransactions();
+  }
+
+  String _getDateRangeString() {
+    final dateRange = _getStartEndDate();
+    final DateTime periodStartDate = dateRange.start;
+    final DateTime periodEndDate = dateRange.end;
+
+    switch (_selectedTimePeriod) {
+      case TimePeriod.day:
+        // periodStartDate is already the specific day
+        return DateFormat('EEE, MMM d, yyyy').format(periodStartDate);
+      case TimePeriod.week:
+        // periodStartDate is the Monday, periodEndDate is the Sunday
+        if (periodStartDate.month == periodEndDate.month) {
+          return '${DateFormat('MMM d').format(periodStartDate)} - ${DateFormat('d, yyyy').format(periodEndDate)}';
+        } else if (periodStartDate.year == periodEndDate.year) {
+          return '${DateFormat('MMM d').format(periodStartDate)} - ${DateFormat('MMM d, yyyy').format(periodEndDate)}';
+        }
+        return '${DateFormat('MMM d, yyyy').format(periodStartDate)} - ${DateFormat('MMM d, yyyy').format(periodEndDate)}';
+      case TimePeriod.month:
+        // periodStartDate is the 1st of the month
+        return DateFormat('MMMM yyyy').format(periodStartDate);
+      case TimePeriod.year:
+        // periodStartDate is Jan 1st of the year
+        return DateFormat('yyyy').format(periodStartDate);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final transactionsProvider = Provider.of<TransactionsProvider>(context);
     final accountProvider = context.watch<AccountProvider>();
     final List<ChartDataPoint> chartPoints = transactionsProvider.chartData;
     final double maxYValueForChart = transactionsProvider.maxChartYValue;
+    final DateTime _now = DateTime.now();
+    String currentDateRangeDisplay = _getDateRangeString();
+
     print(chartPoints);
     print(maxYValueForChart);
 
@@ -269,67 +404,75 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
-          const Divider(height: 30),
+          const SizedBox(height: 15),
 
-          Container(
-            height: 200,
-            child: BarChart(
-              BarChartData(
-                maxY: maxYValueForChart,
-                minY: 0,
-                barGroups:
-                    chartPoints.asMap().entries.map((entry) {
-                      int index = entry.key;
-                      ChartDataPoint dataPoint = entry.value;
-
-                      return BarChartGroupData(
-                        x: index,
-                        barRods: [
-                          BarChartRodData(
-                            toY: dataPoint.income,
-                            color: Colors.green,
-                          ),
-                          BarChartRodData(
-                            toY: dataPoint.expense,
-                            color: Colors.red,
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                titlesData: FlTitlesData(
-                  show: true,
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 22,
-                      getTitlesWidget: (double value, TitleMeta meta) {
-                        String text = '';
-                        if (value.toInt() >= 0 &&
-                            value.toInt() < chartPoints.length) {
-                          text = chartPoints[value.toInt()].label;
-                        }
-                        return SideTitleWidget(
-                          meta: meta,
-                          child: Text(
-                            text,
-                            style: const TextStyle(fontSize: 10),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  leftTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
+          Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: _goPreviousPeriod, // Call navigation method
+                    tooltip: 'Previous Period',
                   ),
                 ),
               ),
-            ),
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(width: 24),
+                ),
+              ),
+              Expanded(
+                flex: 3,
+                child: Text(
+                  currentDateRangeDisplay, // Display the formatted date range
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child:
+                      DateTime(
+                                _currentReferenceDate.year,
+                                _currentReferenceDate.month,
+                                _currentReferenceDate.day,
+                              ) !=
+                              DateTime(_now.year, _now.month, _now.day)
+                          ? IconButton(
+                            onPressed: _goCurrentDate,
+                            icon: const Icon(Icons.date_range),
+                          )
+                          : SizedBox(width: 24),
+                ),
+              ),
+              Expanded(
+                flex: 1,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: _goNextPeriod, // Call navigation method
+                    tooltip: 'Next Period',
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 30),
+
+          homepagebarchart(
+            maxYValueForChart: maxYValueForChart,
+            chartPoints: chartPoints,
           ),
 
           const Divider(height: 30),
@@ -391,5 +534,129 @@ class _HomePageState extends State<HomePage> {
       ),
     );
     ;
+  }
+}
+
+class homepagebarchart extends StatelessWidget {
+  const homepagebarchart({
+    super.key,
+    required this.maxYValueForChart,
+    required this.chartPoints,
+  });
+
+  final double maxYValueForChart;
+  final List<ChartDataPoint> chartPoints;
+
+  @override
+  Widget build(BuildContext context) {
+    double chartwidth = chartPoints.length * 50;
+    final screenwidth = MediaQuery.of(context).size.width;
+    if (chartwidth < screenwidth) {
+      chartwidth = screenwidth;
+    }
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        height: 200,
+        width: chartwidth,
+        child: BarChart(
+          BarChartData(
+            maxY: maxYValueForChart,
+            minY: 0,
+            groupsSpace: 50,
+            gridData: FlGridData(show: false),
+            barGroups:
+                chartPoints.asMap().entries.map((entry) {
+                  int index = entry.key;
+                  ChartDataPoint dataPoint = entry.value;
+
+                  return BarChartGroupData(
+                    x: index,
+                    barRods: [
+                      BarChartRodData(
+                        toY: dataPoint.income,
+                        color: Colors.green,
+                      ),
+                      BarChartRodData(
+                        toY: dataPoint.expense,
+                        color: Colors.red,
+                      ),
+                    ],
+                  );
+                }).toList(),
+            titlesData: FlTitlesData(
+              show: true,
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 50,
+                  getTitlesWidget: (double value, TitleMeta meta) {
+                    final int pointIndex = value.toInt();
+                    ChartDataPoint? currentPoint;
+                    currentPoint = chartPoints[pointIndex];
+
+                    if (currentPoint == null) {
+                      return SideTitleWidget(meta: meta, child: const Text(''));
+                    }
+                    String periodLabel = currentPoint.label;
+                    double netChangeValue = currentPoint.netChange;
+                    String netChangeString = '';
+                    Color netChangeColor = Colors.grey;
+
+                    if (netChangeValue != 0) {
+                      netChangeColor =
+                          netChangeValue >= 0 ? Colors.green : Colors.red;
+                      String netChangeSign = netChangeValue >= 0 ? '+' : '-';
+                      netChangeString =
+                          '$netChangeSign\$${netChangeValue.abs().toStringAsFixed(0)}';
+                    }
+
+                    return SideTitleWidget(
+                      meta: meta,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(periodLabel),
+                          Text(
+                            netChangeString,
+                            style: TextStyle(color: netChangeColor),
+                          ),
+                        ],
+                      ),
+                    );
+                    // String text = '';
+                    // if (value.toInt() >= 0 &&
+                    //     value.toInt() < chartPoints.length) {
+                    //   text = chartPoints[value.toInt()].label;
+                    // }
+                    // return SideTitleWidget(
+                    //   meta: meta,
+                    //   child: Text(text, style: const TextStyle(fontSize: 10)),
+                    // );
+                  },
+                ),
+              ),
+              leftTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+            ),
+            barTouchData: BarTouchData(
+              enabled: true,
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipColor: (group) => Colors.transparent,
+                tooltipPadding: EdgeInsets.zero,
+                tooltipMargin: 0,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

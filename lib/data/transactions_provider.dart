@@ -10,12 +10,14 @@ class ChartDataPoint {
   final double income;
   final double expense;
   final String label;
+  final double netChange;
 
   ChartDataPoint({
     required this.x,
     required this.income,
     required this.expense,
     required this.label,
+    required this.netChange,
   });
 }
 
@@ -39,6 +41,13 @@ class TransactionsProvider with ChangeNotifier {
   DateTime? _currentEndDate;
   int? _currentLimit; // If you use a limit filter
   TimePeriod? _currentPeriodForChart;
+
+  double get netChangeForPeriod {
+    if (_transactions.isEmpty) {
+      return 0.0;
+    }
+    return _transactions.fold(0.0, (sum, tx) => sum + tx.amount);
+  }
 
   int _getWeekOfMonth(DateTime date) {
     final localDate = date.toLocal();
@@ -114,12 +123,14 @@ class TransactionsProvider with ChangeNotifier {
           if (tx.amount > 0) dailyIncome += tx.amount;
           if (tx.amount < 0) dailyExpense += tx.amount.abs();
         }
+        double dailyNetChange = dailyIncome - dailyExpense;
         newChartData.add(
           ChartDataPoint(
             x: 0,
             income: dailyIncome,
             expense: dailyExpense,
             label: 'Today',
+            netChange: dailyNetChange,
           ),
         );
 
@@ -149,12 +160,14 @@ class TransactionsProvider with ChangeNotifier {
               if (tx.amount < 0) expense += tx.amount.abs();
             }
           }
+          double weeklyNetChange = income - expense;
           newChartData.add(
             ChartDataPoint(
               x: i.toDouble() - 1,
               income: income,
               expense: expense,
               label: weekdays[i - 1],
+              netChange: weeklyNetChange,
             ),
           );
           if (income > currentMaxY) currentMaxY = income;
@@ -184,12 +197,19 @@ class TransactionsProvider with ChangeNotifier {
               if (tx.amount < 0) expense += tx.amount.abs();
             }
           }
+          int startDayOfWeekInMonth = ((weekNum - 1) * 7) + 1;
+          int endDayOfWeekInMonth = startDayOfWeekInMonth + 6;
+          if (endDayOfWeekInMonth > lastDayOfMonth.day) {
+            endDayOfWeekInMonth = lastDayOfMonth.day;
+          }
+          double monthlyNetChange = income - expense;
           newChartData.add(
             ChartDataPoint(
               x: weekNum.toDouble() - 1,
               income: income,
               expense: expense,
-              label: 'Wk $weekNum', // Label for the x-axis tick
+              label: '$startDayOfWeekInMonth - $endDayOfWeekInMonth',
+              netChange: monthlyNetChange,
             ),
           );
           if (income > currentMaxY) currentMaxY = income;
@@ -225,12 +245,14 @@ class TransactionsProvider with ChangeNotifier {
               if (tx.amount < 0) expense += tx.amount.abs();
             }
           }
+          double yearlyNetChange = income - expense;
           newChartData.add(
             ChartDataPoint(
               x: i.toDouble() - 1,
               income: income,
               expense: expense,
               label: months[i - 1],
+              netChange: yearlyNetChange,
             ),
           );
           if (income > currentMaxY) currentMaxY = income;
