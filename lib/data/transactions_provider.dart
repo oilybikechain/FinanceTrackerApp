@@ -24,30 +24,26 @@ class ChartDataPoint {
 class TransactionsProvider with ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
 
-  List<Transactions> _transactions = [];
-
-  List<Transactions> get transactions => _transactions;
-
-  List<ChartDataPoint> _chartData = [];
-
-  double _maxChartYValue = 100.0;
-
-  List<ChartDataPoint> get chartData => _chartData;
-
-  double get maxChartYValue => _maxChartYValue;
-
-  List<int>? _currentAccountIds; // Can be null for "All Accounts"
+  //State Variables
+  List<int>? _currentAccountIds;
   DateTime? _currentStartDate;
   DateTime? _currentEndDate;
-  int? _currentLimit; // If you use a limit filter
+  int? _currentLimit;
   TimePeriod? _currentPeriodForChart;
+  double _totalIncomeForPeriod = 0.0;
+  double _totalExpenseForPeriod = 0.0;
+  double _netChangeForPeriod = 0.0;
+  double _maxChartYValue = 100.0;
+  List<ChartDataPoint> _chartData = [];
+  List<Transactions> _transactions = [];
 
-  double get netChangeForPeriod {
-    if (_transactions.isEmpty) {
-      return 0.0;
-    }
-    return _transactions.fold(0.0, (sum, tx) => sum + tx.amount);
-  }
+  //Getters
+  double get maxChartYValue => _maxChartYValue;
+  List<ChartDataPoint> get chartData => _chartData;
+  List<Transactions> get transactions => _transactions;
+  double get totalIncomeForPeriod => _totalIncomeForPeriod;
+  double get totalExpenseForPeriod => _totalExpenseForPeriod;
+  double get netChangeForPeriod => _netChangeForPeriod;
 
   int _getWeekOfMonth(DateTime date) {
     final localDate = date.toLocal();
@@ -83,6 +79,7 @@ class TransactionsProvider with ChangeNotifier {
         _chartData = [];
         _maxChartYValue = 100.0;
       }
+      _calculatePeriodSummaries();
     } catch (e) {
       print("Error fetching transactions: $e");
       _transactions = [];
@@ -262,6 +259,23 @@ class TransactionsProvider with ChangeNotifier {
     }
     _chartData = newChartData;
     _maxChartYValue = currentMaxY;
+  }
+
+  void _calculatePeriodSummaries() {
+    double income = 0.0;
+    double expense = 0.0;
+
+    for (final transaction in _transactions) {
+      if (transaction.amount > 0) {
+        income += transaction.amount;
+      } else if (transaction.amount < 0) {
+        expense += transaction.amount.abs();
+      }
+    }
+
+    _totalIncomeForPeriod = income;
+    _totalExpenseForPeriod = expense;
+    _netChangeForPeriod = income - expense;
   }
 
   Future<bool> addTransaction(Transactions transaction) async {

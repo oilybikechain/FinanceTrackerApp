@@ -48,12 +48,21 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _onDelete(Transactions transactionToDelete) async {
+    final dateRange = _getStartEndDate();
+    final DateTime endDate = dateRange.end;
     final currentContext = context;
     final transactionsProvider = Provider.of<TransactionsProvider>(
       currentContext,
       listen: false,
     );
     transactionsProvider.deleteTransaction(transactionToDelete.id!);
+    final accountProvider = Provider.of<AccountProvider>(
+      currentContext,
+      listen: false,
+    );
+
+    //LAST UPDATED PROGRESS
+    accountProvider.fetchAccountBalanceAtDate(_selectedAccountId!, endDate);
   }
 
   static const int _allAccountsId = 0;
@@ -69,6 +78,7 @@ class _HomePageState extends State<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchAccountsForDropdown();
       _fetchTransactions();
+      _fetchPeriodEndBalance();
     });
   }
 
@@ -186,6 +196,26 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _fetchPeriodEndBalance() async {
+    if (!mounted) return;
+    List<int>? accountIdsToFetch;
+    if (_selectedAccountId != null && _selectedAccountId != _allAccountsId) {
+      accountIdsToFetch = [_selectedAccountId!];
+    }
+
+    final dateRange = _getStartEndDate();
+    final DateTime endDate = dateRange.end;
+
+    final accountProvider = Provider.of<AccountProvider>(
+      context,
+      listen: false,
+    );
+    await accountProvider.fetchAccountBalanceAtDate(
+      _selectedAccountId!,
+      endDate,
+    );
+  }
+
   void _goNextPeriod() {
     setState(() {
       switch (_selectedTimePeriod) {
@@ -216,6 +246,7 @@ class _HomePageState extends State<HomePage> {
       }
     });
     _fetchTransactions();
+    _fetchPeriodEndBalance();
   }
 
   void _goCurrentDate() {
@@ -255,6 +286,7 @@ class _HomePageState extends State<HomePage> {
       }
     });
     _fetchTransactions();
+    _fetchPeriodEndBalance();
   }
 
   String _getDateRangeString() {
@@ -291,9 +323,18 @@ class _HomePageState extends State<HomePage> {
     final double maxYValueForChart = transactionsProvider.maxChartYValue;
     final DateTime _now = DateTime.now();
     String currentDateRangeDisplay = _getDateRangeString();
+    final double? selectedAccountPeriodEndBalance =
+        accountProvider.periodEndBalance;
+    final bool isLoadingPeriodEndBalance =
+        accountProvider.isPeriodEndBalanceLoading;
+    final bool isAccountCreated = accountProvider.isAccountCreatedByPeriodEnd;
+    final double totalIncome = transactionsProvider.totalIncomeForPeriod;
+    final double totalExpense = transactionsProvider.totalExpenseForPeriod;
+    final double netChange = transactionsProvider.netChangeForPeriod;
 
     print(chartPoints);
     print(maxYValueForChart);
+    print(selectedAccountPeriodEndBalance);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Homepage')),
@@ -353,7 +394,8 @@ class _HomePageState extends State<HomePage> {
                                 setState(() {
                                   _selectedAccountId = newValue;
                                 });
-                                _fetchTransactions(); // Re-fetch transactions when account changes
+                                _fetchTransactions();
+                                _fetchPeriodEndBalance();
                               }
                             },
                             // No validator needed if "All Accounts" is always a valid selection
@@ -394,6 +436,7 @@ class _HomePageState extends State<HomePage> {
                           _selectedTimePeriod = newSelection.first;
                         });
                         _fetchTransactions(); // Re-fetch transactions when period changes
+                        _fetchPeriodEndBalance();
                       }
                     },
                     multiSelectionEnabled: false,
@@ -404,7 +447,120 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
-          const SizedBox(height: 15),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              vertical: 8.0,
+              horizontal: 12.0,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child:
+                      !isAccountCreated
+                          ? Column(
+                            children: [
+                              Text(
+                                'Account not',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              Text(
+                                'created yet',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ],
+                          )
+                          : Column(
+                            children: [
+                              Text(
+                                'Balance:',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              Text(
+                                selectedAccountPeriodEndBalance != null
+                                    ? selectedAccountPeriodEndBalance < 0
+                                        ? '-\$${selectedAccountPeriodEndBalance.abs().toStringAsFixed(2)}'
+                                        : '\$${selectedAccountPeriodEndBalance.toStringAsFixed(2)}'
+                                    : '\$0.00',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.titleMedium?.copyWith(
+                                  color:
+                                      selectedAccountPeriodEndBalance == null
+                                          ? Colors.grey
+                                          : (selectedAccountPeriodEndBalance < 0
+                                              ? Colors.red
+                                              : Colors.green),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ],
+                          ),
+                ),
+
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        "Income:",
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        '\$${totalIncome.toStringAsFixed(2)}',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.copyWith(color: Colors.green),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        "Expense:",
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        '-\$${totalExpense.toStringAsFixed(2)}',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.copyWith(color: Colors.red),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        "Net: ",
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        netChange < 0
+                            ? '-\$${netChange.abs().toStringAsFixed(2)}'
+                            : '\$${netChange.toStringAsFixed(2)}',
+                        style:
+                            netChange > 0
+                                ? Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(color: Colors.green)
+                                : Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(color: Colors.red),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
 
           Row(
             children: [
@@ -427,7 +583,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               Expanded(
-                flex: 3,
+                flex: 5,
                 child: Text(
                   currentDateRangeDisplay, // Display the formatted date range
                   textAlign: TextAlign.center,
@@ -468,14 +624,12 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
 
-          const SizedBox(height: 30),
-
           homepagebarchart(
             maxYValueForChart: maxYValueForChart,
             chartPoints: chartPoints,
           ),
 
-          const Divider(height: 30),
+          const Divider(height: 20),
 
           Expanded(
             // Use Expanded to make the list take remaining space
