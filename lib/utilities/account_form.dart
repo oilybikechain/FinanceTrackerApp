@@ -3,9 +3,9 @@ import 'package:finance_tracker/data/accounts_class.dart';
 import 'package:finance_tracker/data/recurring_transactions_class.dart';
 import 'package:flutter/services.dart'; // For TextInputFormatters
 import 'package:finance_tracker/data/enums.dart'; // Import your enums
-import 'package:finance_tracker/data/account_provider.dart';
+import 'package:finance_tracker/services/account_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:finance_tracker/data/recurring_transactions_provider.dart';
+import 'package:finance_tracker/services/recurring_transactions_provider.dart';
 import 'package:intl/intl.dart';
 
 class AccountForm extends StatefulWidget {

@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart'; 
-import 'package:finance_tracker/data/recurring_transactions_class.dart';     
-import 'package:finance_tracker/data/database_service.dart'; 
-
+import 'package:flutter/material.dart';
+import 'package:finance_tracker/data/recurring_transactions_class.dart';
+import 'package:finance_tracker/services/database_service.dart';
 
 class RecurringTransactionsProvider with ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
@@ -12,7 +11,8 @@ class RecurringTransactionsProvider with ChangeNotifier {
   String? _error;
 
   // --- Public Getters ---
-  List<RecurringTransaction> get recurringTransactions => _recurringTransactions;
+  List<RecurringTransaction> get recurringTransactions =>
+      _recurringTransactions;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -44,7 +44,9 @@ class RecurringTransactionsProvider with ChangeNotifier {
       final newRecurring = recurring.copyWith(id: id);
       _recurringTransactions.add(newRecurring);
       // Sort maybe by next due date?
-      _recurringTransactions.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+      _recurringTransactions.sort(
+        (a, b) => a.nextDueDate.compareTo(b.nextDueDate),
+      );
       notifyListeners();
       // _setLoading(false);
       return true; // Success
@@ -57,16 +59,22 @@ class RecurringTransactionsProvider with ChangeNotifier {
   }
 
   // Update an existing recurring transaction rule
-  Future<bool> updateRecurringTransaction(RecurringTransaction recurring) async {
+  Future<bool> updateRecurringTransaction(
+    RecurringTransaction recurring,
+  ) async {
     _setError(null);
     // _setLoading(true); // Optional
 
     try {
       await _dbService.updateRecurringTransaction(recurring);
-      final index = _recurringTransactions.indexWhere((r) => r.id == recurring.id);
+      final index = _recurringTransactions.indexWhere(
+        (r) => r.id == recurring.id,
+      );
       if (index != -1) {
         _recurringTransactions[index] = recurring;
-        _recurringTransactions.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+        _recurringTransactions.sort(
+          (a, b) => a.nextDueDate.compareTo(b.nextDueDate),
+        );
         notifyListeners();
       }
       // _setLoading(false);
@@ -118,13 +126,12 @@ class RecurringTransactionsProvider with ChangeNotifier {
   // Example placeholder:
   // Future<void> processDueRecurringTransactions() async { ... }
 
-
   // --- Private Helper Methods ---
   void _setLoading(bool loading) {
     if (_isLoading == loading) return;
     _isLoading = loading;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-       notifyListeners();
+      notifyListeners();
     });
   }
 
@@ -132,7 +139,7 @@ class RecurringTransactionsProvider with ChangeNotifier {
     if (_error == error) return;
     _error = error;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-       notifyListeners();
+      notifyListeners();
     });
   }
 }

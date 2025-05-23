@@ -3,7 +3,7 @@ import 'package:finance_tracker/utilities/account_form.dart';
 import 'package:finance_tracker/utilities/accounts_tile.dart';
 import 'package:finance_tracker/utilities/app_drawer.dart';
 import 'package:flutter/material.dart';
-import 'package:finance_tracker/data/account_provider.dart';
+import 'package:finance_tracker/services/account_provider.dart';
 import 'package:provider/provider.dart';
 
 class AccountsPage extends StatefulWidget {

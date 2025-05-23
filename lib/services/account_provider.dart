@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:finance_tracker/data/accounts_class.dart';
-import 'package:finance_tracker/data/database_service.dart';
+import 'package:finance_tracker/services/database_service.dart';
 
 // Extend ChangeNotifier to enable notifying listeners
 class AccountProvider with ChangeNotifier {

@@ -21,20 +21,16 @@ class AppDrawer extends StatelessWidget {
               padding: EdgeInsets.all(10),
               child: Row(
                 children: [
-                  Text(
-                    "FINANCE  TRACKER",
-                    style: TextStyle(
-                      fontSize: 22,
-                    ),
-                  ),
+                  Text("FINANCE  TRACKER", style: TextStyle(fontSize: 22)),
                   Container(width: 20),
                   GestureDetector(
                     onTap: () {
-                      Provider.of<ThemeProvider>(context, listen:false).toggleTheme();
+                      Provider.of<ThemeProvider>(
+                        context,
+                        listen: false,
+                      ).toggleTheme();
                     },
-                    child: Icon(
-                      Icons.brightness_6,
-                    ),
+                    child: Icon(Icons.brightness_6),
                   ),
                 ],
               ),
@@ -45,38 +41,31 @@ class AppDrawer extends StatelessWidget {
             leading: Icon(Icons.home),
             title: Text("H O M E"),
             onTap: () {
-              navigateTo(
-                "/homepage",
-                context,
-              );
+              navigateTo("/homepage", context);
             },
           ),
 
           ListTile(
-            leading: Icon(
-              Icons.account_balance,
-            ),
+            leading: Icon(Icons.account_balance),
             title: Text("A C C O U N T S"),
             onTap: () {
-              navigateTo(
-                "/accountspage",
-                context,
-              );
+              navigateTo("/accountspage", context);
             },
           ),
 
           ListTile(
-            leading: Icon(
-              Icons.analytics_outlined,
-            ),
-            title: Text(
-              "S T A T I S T I C S",
-            ),
+            leading: Icon(Icons.category_outlined),
+            title: Text("C A T E G O R I E S"),
             onTap: () {
-              navigateTo(
-                "/statisticspage",
-                context,
-              );
+              navigateTo("/categoriespage", context);
+            },
+          ),
+
+          ListTile(
+            leading: Icon(Icons.analytics_outlined),
+            title: Text("S T A T I S T I C S"),
+            onTap: () {
+              navigateTo("/statisticspage", context);
             },
           ),
         ],

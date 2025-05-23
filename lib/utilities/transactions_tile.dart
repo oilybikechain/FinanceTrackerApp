@@ -79,7 +79,7 @@ class TransactionsTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  transactionData.description,
+                  transactionData.description!,
                   style: TextStyle(fontSize: 15),
                   textAlign: TextAlign.left,
                 ),

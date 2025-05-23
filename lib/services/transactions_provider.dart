@@ -2,7 +2,7 @@ import 'package:finance_tracker/data/enums.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
-import 'package:finance_tracker/data/database_service.dart';
+import 'package:finance_tracker/services/database_service.dart';
 import 'package:collection/collection.dart';
 
 class ChartDataPoint {

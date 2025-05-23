@@ -1,8 +1,8 @@
-import 'package:finance_tracker/data/account_provider.dart';
+import 'package:finance_tracker/services/account_provider.dart';
 import 'package:finance_tracker/data/accounts_class.dart';
 import 'package:finance_tracker/data/enums.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
-import 'package:finance_tracker/data/transactions_provider.dart';
+import 'package:finance_tracker/services/transactions_provider.dart';
 import 'package:finance_tracker/utilities/app_drawer.dart';
 import 'package:finance_tracker/utilities/transactions_form.dart';
 import 'package:finance_tracker/utilities/transactions_tile.dart';
@@ -43,6 +43,7 @@ class _HomePageState extends State<HomePage> {
             duration: const Duration(seconds: 2),
           ),
         );
+        _fetchPeriodEndBalance();
       }
     });
   }

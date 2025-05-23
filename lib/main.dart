@@ -1,6 +1,8 @@
-import 'package:finance_tracker/data/account_provider.dart';
-import 'package:finance_tracker/data/recurring_transactions_provider.dart';
-import 'package:finance_tracker/data/transactions_provider.dart';
+import 'package:finance_tracker/pages/categories_page.dart';
+import 'package:finance_tracker/services/account_provider.dart';
+import 'package:finance_tracker/services/category_provider.dart';
+import 'package:finance_tracker/services/recurring_transactions_provider.dart';
+import 'package:finance_tracker/services/transactions_provider.dart';
 import 'package:finance_tracker/pages/accounts_page.dart';
 import 'package:finance_tracker/pages/home_page.dart';
 import 'package:finance_tracker/pages/statistics_page.dart';
@@ -15,9 +17,12 @@ void main() {
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
         ChangeNotifierProvider(create: (context) => AccountProvider()),
         ChangeNotifierProvider(create: (context) => TransactionsProvider()),
-        ChangeNotifierProvider(create: (context) => RecurringTransactionsProvider()),
-        ],
-        child: const MyApp(),
+        ChangeNotifierProvider(
+          create: (context) => RecurringTransactionsProvider(),
+        ),
+        ChangeNotifierProvider(create: (context) => CategoryProvider()),
+      ],
+      child: const MyApp(),
     ),
   );
 }
@@ -32,9 +37,10 @@ class MyApp extends StatelessWidget {
       home: HomePage(),
       theme: Provider.of<ThemeProvider>(context).themeData,
       routes: {
-        '/homepage':(context) => HomePage(),
-        '/accountspage':(context) => AccountsPage(),
-        '/statisticspage':(context) => StatisticsPage(),
+        '/homepage': (context) => HomePage(),
+        '/accountspage': (context) => AccountsPage(),
+        '/statisticspage': (context) => StatisticsPage(),
+        '/categoriespage': (context) => CategoriesPage(),
       },
     );
   }

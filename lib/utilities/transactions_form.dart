@@ -1,14 +1,14 @@
-import 'package:finance_tracker/data/account_provider.dart';
+import 'package:finance_tracker/services/account_provider.dart';
 import 'package:finance_tracker/data/accounts_class.dart';
-import 'package:finance_tracker/data/transactions_provider.dart';
+import 'package:finance_tracker/services/transactions_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
 import 'package:finance_tracker/data/recurring_transactions_class.dart';
 import 'package:flutter/services.dart'; // For TextInputFormatters
 import 'package:finance_tracker/data/enums.dart'; // Import your enums
-import 'package:finance_tracker/data/transactions_provider.dart';
+import 'package:finance_tracker/services/transactions_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:finance_tracker/data/recurring_transactions_provider.dart';
+import 'package:finance_tracker/services/recurring_transactions_provider.dart';
 import 'package:intl/intl.dart';
 
 //TODO, add support for changing date
@@ -51,7 +51,7 @@ class _TransactionsFormState extends State<TransactionsForm> {
       _isEditMode = true;
       final transaction = widget.existingTransaction!;
 
-      _transactionDescriptionController.text = transaction.description;
+      _transactionDescriptionController.text = transaction.description!;
 
       double initialAmount = transaction.amount.abs();
 
@@ -134,6 +134,7 @@ class _TransactionsFormState extends State<TransactionsForm> {
         accountId: account!,
         type: transactionType!,
         timestamp: _createdAt,
+        categoryId: 1,
       );
       // Await the result directly from the provider
       success = await transactionsProvider.addTransaction(newTransaction);
@@ -340,9 +341,6 @@ class _TransactionsFormState extends State<TransactionsForm> {
               textInputAction: TextInputAction.next,
 
               validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a transaction name.';
-                }
                 return null;
               },
             ),

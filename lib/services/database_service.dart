@@ -1,3 +1,4 @@
+import 'package:finance_tracker/data/category_class.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -57,12 +58,16 @@ class DatabaseService {
       CREATE TABLE transactions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           account_id INTEGER NOT NULL,
-          type TEXT NOT NULL, -- Stores TransactionType.name
+          type TEXT NOT NULL, 
           amount REAL NOT NULL,
           timestamp TEXT NOT NULL,
           description TEXT,
+          category_id INTEGER DEFAULT 1,
           transfer_peer_transaction_id INTEGER NULL,
-          FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+          recurring_transaction_id INTEGER NULL,
+          FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET 1,
+          FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+          FOREIGN KEY (recurring_transaction_id) REFERENCES recurring_transactions(id) ON DELETE SET NULL
       );
     ''');
     batch.execute(
@@ -86,6 +91,16 @@ class DatabaseService {
       );
     ''');
 
+    batch.execute('''
+      CREATE TABLE categories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          color_value INTEGER NOT NULL DEFAULT ${0xFFB0BEC5}, 
+          is_system_default INTEGER NOT NULL DEFAULT 0     
+        );  
+      ''');
+
+    batch.insert('categories', {'name': 'General', 'is_system_default': 1});
     await batch.commit(noResult: true);
     print("Database tables created!");
   }
@@ -558,5 +573,67 @@ class DatabaseService {
     await db.close();
     _database = null; // Ensure re-initialization next time
     print("Database closed.");
+  }
+
+  // =====================================================================
+  // CRUD Operations for Categories
+  // =====================================================================
+
+  Future<int> insertCategory(Category category) async {
+    final db = await database;
+    print("DBService: Inserting Category: ${category.toMap()}");
+    return await db.insert(
+      'categories',
+      category.toMap()..remove('id'), // Let DB auto-generate ID
+      // Fail if category name (UNIQUE) already exists
+      conflictAlgorithm: ConflictAlgorithm.fail,
+    );
+  }
+
+  Future<List<Category>> getCategories() async {
+    final db = await database;
+    // Order by system defaults first, then by name
+    final List<Map<String, dynamic>> maps = await db.query(
+      'categories',
+      orderBy: 'is_system_default DESC, name ASC',
+    );
+    return List.generate(maps.length, (i) => Category.fromMap(maps[i]));
+  }
+
+  Future<Category?> getCategoryById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'categories',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return maps.isNotEmpty ? Category.fromMap(maps.first) : null;
+  }
+
+  Future<int> updateCategory(Category category) async {
+    final db = await database;
+    // Prevent updating name of system default categories if needed
+    // if (category.isSystemDefault) {
+    //   return await db.update('categories', {'color_value': category.colorValue}, where: 'id = ?', whereArgs: [category.id]);
+    // }
+    return await db.update(
+      'categories',
+      category.toMap(), // toMap now includes colorValue
+      where: 'id = ?',
+      whereArgs: [category.id],
+      conflictAlgorithm: ConflictAlgorithm.fail, // If new name conflicts
+    );
+  }
+
+  Future<int> deleteCategory(int id) async {
+    final db = await database;
+    // Prevent deleting system default categories
+    return await db.delete(
+      'categories',
+      where:
+          'id = ? AND is_system_default = 0', // Only delete if not a system default
+      whereArgs: [id],
+    );
   }
 }
