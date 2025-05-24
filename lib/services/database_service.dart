@@ -65,7 +65,7 @@ class DatabaseService {
           category_id INTEGER DEFAULT 1,
           transfer_peer_transaction_id INTEGER NULL,
           recurring_transaction_id INTEGER NULL,
-          FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET 1,
+          FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET DEFAULT,
           FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
           FOREIGN KEY (recurring_transaction_id) REFERENCES recurring_transactions(id) ON DELETE SET NULL
       );
