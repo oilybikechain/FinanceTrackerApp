@@ -80,22 +80,22 @@ class CategoryProvider with ChangeNotifier {
     print("CategoryProvider: User default set to: ${category?.name}");
   }
 
-  Future<bool> addCategory(String name, Color color) async {
+  Future<bool> addCategory(Category categoryToAdd) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     if (_categories.any(
-      (cat) => cat.name.toLowerCase() == name.trim().toLowerCase(),
+      (cat) => cat.name.toLowerCase() == categoryToAdd.name.toLowerCase(),
     )) {
-      _error = "Category '$name' already exists.";
+      _error = "Category '$categoryToAdd' already exists.";
       _isLoading = false;
       notifyListeners();
       return false;
     }
 
     try {
-      final newCategory = Category(name: name.trim(), colorValue: color.value);
+      final newCategory = categoryToAdd;
       int id = await _dbService.insertCategory(newCategory);
       if (id > 0) {
         await fetchCategories(); // Re-fetch to get the new list including the ID and keep sorted
@@ -115,9 +115,6 @@ class CategoryProvider with ChangeNotifier {
   }
 
   Future<bool> updateCategory(Category category) async {
-    // ... (implement similarly: call _dbService.updateCategory, then fetchCategories)
-    // Handle potential name conflicts if name is changed to an existing one.
-    // Prevent editing name of system default categories.
     _isLoading = true;
     _error = null;
     notifyListeners();

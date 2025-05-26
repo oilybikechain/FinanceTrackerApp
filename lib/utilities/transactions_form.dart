@@ -1,5 +1,7 @@
+import 'package:finance_tracker/data/category_class.dart';
 import 'package:finance_tracker/services/account_provider.dart';
 import 'package:finance_tracker/data/accounts_class.dart';
+import 'package:finance_tracker/services/category_provider.dart';
 import 'package:finance_tracker/services/transactions_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
@@ -33,9 +35,13 @@ class _TransactionsFormState extends State<TransactionsForm> {
   double _maxDollarSliderValue = 100;
 
   bool _isEditMode = false;
-  DateTime _createdAt = DateTime.now();
+  DateTime _transactionDateTime = DateTime.now();
   TransactionType? _selectedtransactionType;
   int? _selectedAccountId;
+
+  int _selectedCategoryId = 1;
+
+  bool _isLoadingDefaults = false;
 
   @override
   void initState() {
@@ -45,7 +51,18 @@ class _TransactionsFormState extends State<TransactionsForm> {
       context,
       listen: false,
     );
+    final categoryProvider = Provider.of<CategoryProvider>(
+      context,
+      listen: false,
+    );
+
     final accounts = accountProvider.accounts;
+    List<Category> categories = categoryProvider.categories;
+
+    if (categories.isEmpty && !categoryProvider.isLoading) {
+      categoryProvider.fetchCategories();
+      categories = categoryProvider.categories;
+    }
 
     if (widget.existingTransaction != null) {
       _isEditMode = true;
@@ -64,25 +81,72 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
       _selectedAccountId = transaction.accountId;
 
-      _createdAt = transaction.timestamp;
+      _transactionDateTime = transaction.timestamp;
 
       if (initialAmount > 100) {
         _maxDollarSliderValue = initialAmount;
       }
 
+      _selectedCategoryId = transaction.categoryId;
+
       //TODO Add support for transfers and recurring transactions.
     } else {
       _amountController.text = "0.00";
       _selectedtransactionType = TransactionType.expense;
-      _selectedAccountId = null;
+
       if (accounts.isNotEmpty) {
         _selectedAccountId = accounts.first.id;
       } else {
         _selectedAccountId = null;
       }
+
+      _selectedCategoryId = 1;
     }
 
     _amountController.addListener(_syncSlidersFromTextField);
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _transactionDateTime, // Pre-select current date
+      firstDate: DateTime(2000), // Earliest selectable date
+      lastDate: DateTime(2101), // Latest selectable date
+    );
+    if (pickedDate != null && pickedDate != _transactionDateTime) {
+      setState(() {
+        // Combine picked date with existing time
+        _transactionDateTime = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          _transactionDateTime.hour,
+          _transactionDateTime.minute,
+        );
+      });
+    }
+  }
+
+  // --- ADDED: Time Picker ---
+  Future<void> _selectTime(BuildContext context) async {
+    final TimeOfDay? pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(
+        _transactionDateTime,
+      ), // Pre-select current time
+    );
+    if (pickedTime != null) {
+      setState(() {
+        // Combine existing date with picked time
+        _transactionDateTime = DateTime(
+          _transactionDateTime.year,
+          _transactionDateTime.month,
+          _transactionDateTime.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
+      });
+    }
   }
 
   Future<void> _submitForm() async {
@@ -98,6 +162,8 @@ class _TransactionsFormState extends State<TransactionsForm> {
     final amount = double.tryParse(_amountController.text) ?? 0.0;
     final transactionType = _selectedtransactionType;
     final account = _selectedAccountId;
+    final selectedCategoryId = _selectedCategoryId;
+    final transactionTimestamp = _transactionDateTime;
 
     final transactionsProvider = Provider.of<TransactionsProvider>(
       context,
@@ -121,6 +187,8 @@ class _TransactionsFormState extends State<TransactionsForm> {
         amount: finalAmount,
         accountId: account,
         type: transactionType,
+        timestamp: transactionTimestamp,
+        categoryId: selectedCategoryId,
       );
       // Await the result directly from the provider
       success = await transactionsProvider.updateTransaction(
@@ -133,8 +201,8 @@ class _TransactionsFormState extends State<TransactionsForm> {
         amount: finalAmount,
         accountId: account!,
         type: transactionType!,
-        timestamp: _createdAt,
-        categoryId: 1,
+        timestamp: transactionTimestamp, // <<< USE SELECTED TIMESTAMP
+        categoryId: selectedCategoryId,
       );
       // Await the result directly from the provider
       success = await transactionsProvider.addTransaction(newTransaction);
@@ -216,6 +284,8 @@ class _TransactionsFormState extends State<TransactionsForm> {
     final colorScheme = Theme.of(context).colorScheme;
     final accounts =
         Provider.of<AccountProvider>(context, listen: false).accounts;
+    final categoryProvider = context.watch<CategoryProvider>();
+    final categories = categoryProvider.categories;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -329,6 +399,44 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
             const SizedBox(height: 20),
 
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectDate(context),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Date',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(Icons.calendar_today),
+                      ),
+                      child: Text(
+                        DateFormat('dd MMM yyyy').format(_transactionDateTime),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => _selectTime(context),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Time',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(Icons.access_time),
+                      ),
+                      child: Text(
+                        DateFormat('hh:mm a').format(_transactionDateTime),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
             TextFormField(
               controller: _transactionDescriptionController,
 
@@ -409,6 +517,73 @@ class _TransactionsFormState extends State<TransactionsForm> {
                 _updateTextFieldFromSliders();
               },
             ),
+
+            const SizedBox(height: 20),
+
+            Text("Category", style: textTheme.titleSmall), // Section label
+            const SizedBox(height: 8),
+            if (categoryProvider.isLoading ||
+                (_isLoadingDefaults && categories.isEmpty))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else
+              SingleChildScrollView(
+                // Allow horizontal scrolling for chips
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children:
+                      categories.map((Category category) {
+                        bool isSelected = category.id == _selectedCategoryId;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: ChoiceChip(
+                            label: Text(category.name),
+                            selected: isSelected,
+                            onSelected: (bool selected) {
+                              // ChoiceChip's onSelected is called when its state *should* change.
+                              // For single selection, if `selected` is true, it means this chip was tapped.
+                              if (selected) {
+                                setState(() {
+                                  _selectedCategoryId = category.id!;
+                                });
+                              }
+                              // If you want to allow deselecting to no category (_selectedCategoryId = null),
+                              // you'd need more logic here, but usually for categories, one is always selected.
+                            },
+                            labelStyle: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  isSelected
+                                      ? Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimaryContainer
+                                      : Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                            ),
+                            selectedColor:
+                                Theme.of(context).colorScheme.primaryContainer,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.surfaceVariant.withOpacity(0.5),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            side:
+                                isSelected
+                                    ? null
+                                    : BorderSide(
+                                      color: Theme.of(context).dividerColor,
+                                    ), // Border for unselected
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ),
 
             const SizedBox(height: 20),
 
