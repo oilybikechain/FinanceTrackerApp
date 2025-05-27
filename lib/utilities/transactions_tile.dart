@@ -1,5 +1,7 @@
+import 'package:finance_tracker/data/category_class.dart';
 import 'package:finance_tracker/data/enums.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
+import 'package:finance_tracker/utilities/category_chip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +11,7 @@ class TransactionsTile extends StatelessWidget {
   final VoidCallback onEdit;
   final Function(Transactions) onDelete;
   final String accountName;
+  final Category categoryTag;
 
   const TransactionsTile({
     super.key,
@@ -16,6 +19,7 @@ class TransactionsTile extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.accountName,
+    required this.categoryTag,
   });
 
   @override
@@ -64,31 +68,132 @@ class TransactionsTile extends StatelessWidget {
         ),
         child: Card(
           elevation: 0,
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 8.0,
-              horizontal: 16.0,
-            ),
-
-            title: Text(
-              amountText,
-              style: TextStyle(color: amountColor, fontSize: 20),
-            ),
-            subtitle: Text(accountName, style: TextStyle(fontSize: 14)),
-            trailing: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.max,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  transactionData.description!,
-                  style: TextStyle(fontSize: 15),
-                  textAlign: TextAlign.left,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      amountText,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleLarge!.copyWith(color: amountColor),
+                      textAlign: TextAlign.left,
+                    ),
+
+                    SizedBox(height: 6),
+
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          accountName,
+                          style: Theme.of(context).textTheme.titleLarge,
+                          textAlign: TextAlign.left,
+                        ),
+                        SizedBox(width: 5),
+                        CategoryChip(
+                          category: categoryTag,
+                          isSelected: false,
+                          onSelected: (nill) {},
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                Text(formattedDate, textAlign: TextAlign.left),
-                Text(formattedTime, textAlign: TextAlign.left),
+
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize:
+                      MainAxisSize.min, // Column takes minimum vertical space
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    Text(
+                      transactionData.description!,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      textAlign: TextAlign.left,
+                    ),
+                    Text(
+                      formattedDate,
+                      textAlign: TextAlign.left,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    Text(
+                      formattedTime,
+                      textAlign: TextAlign.left,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
         ),
+
+        //   child: ListTile(
+        //     contentPadding: const EdgeInsets.symmetric(
+        //       vertical: 6,
+        //       horizontal: 16.0,
+        //     ),
+
+        //     dense: true,
+
+        //     title: Text(
+        //       amountText,
+        //       style: Theme.of(
+        //         context,
+        //       ).textTheme.titleLarge!.copyWith(color: amountColor),
+        //     ),
+        //     subtitle: Padding(
+        //       padding: const EdgeInsets.only(top: 8.0),
+        //       child: Row(
+        //         mainAxisSize: MainAxisSize.min,
+        //         children: [
+        //           Text(
+        //             accountName,
+        //             style: Theme.of(context).textTheme.titleLarge,
+        //           ),
+        //           SizedBox(width: 5),
+        //           CategoryChip(
+        //             category: categoryTag,
+        //             isSelected: false,
+        //             onSelected: (nill) {},
+        //           ),
+        //         ],
+        //       ),
+        //     ),
+        //     trailing: Align(
+        //       alignment: Alignment.topRight,
+        //       child: Column(
+        //         crossAxisAlignment: CrossAxisAlignment.end,
+        //         mainAxisSize:
+        //             MainAxisSize.min, // Column takes minimum vertical space
+        //         mainAxisAlignment: MainAxisAlignment.start,
+        //         children: [
+        //           Text(
+        //             transactionData.description!,
+        //             style: Theme.of(context).textTheme.titleMedium,
+        //             textAlign: TextAlign.left,
+        //           ),
+        //           Text(
+        //             formattedDate,
+        //             textAlign: TextAlign.left,
+        //             style: Theme.of(context).textTheme.labelMedium,
+        //           ),
+        //           Text(
+        //             formattedTime,
+        //             textAlign: TextAlign.left,
+        //             style: Theme.of(context).textTheme.labelMedium,
+        //           ),
+        //         ],
+        //       ),
+        //     ),
+        //   ),
       ),
     );
   }

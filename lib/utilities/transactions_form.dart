@@ -3,6 +3,7 @@ import 'package:finance_tracker/services/account_provider.dart';
 import 'package:finance_tracker/data/accounts_class.dart';
 import 'package:finance_tracker/services/category_provider.dart';
 import 'package:finance_tracker/services/transactions_provider.dart';
+import 'package:finance_tracker/utilities/category_chip.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
 import 'package:finance_tracker/data/recurring_transactions_class.dart';
@@ -158,7 +159,7 @@ class _TransactionsFormState extends State<TransactionsForm> {
       return;
     }
 
-    final description = _transactionDescriptionController.text;
+    String description = _transactionDescriptionController.text.trim();
     final amount = double.tryParse(_amountController.text) ?? 0.0;
     final transactionType = _selectedtransactionType;
     final account = _selectedAccountId;
@@ -177,6 +178,12 @@ class _TransactionsFormState extends State<TransactionsForm> {
                 transactionType == TransactionType.interest)
             ? amount.abs()
             : -amount.abs();
+
+    if (description.isEmpty) {
+      description =
+          transactionType!.name[0].toUpperCase() +
+          transactionType!.name.substring(1);
+    }
 
     bool success = false;
 
@@ -442,7 +449,7 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
               decoration: InputDecoration(
                 labelText: 'Transaction Name',
-                hintText: 'E.g. Food, Transport',
+                hintText: 'E.g. Food, Transport, will default to Category name',
                 border: OutlineInputBorder(),
               ),
 
@@ -518,72 +525,39 @@ class _TransactionsFormState extends State<TransactionsForm> {
               },
             ),
 
-            const SizedBox(height: 20),
+            Padding(
+              // Add overall padding for the category section
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Category:",
+                    style: textTheme.titleSmall,
+                  ), // Section label
+                  const SizedBox(height: 8),
 
-            Text("Category", style: textTheme.titleSmall), // Section label
-            const SizedBox(height: 8),
-            if (categoryProvider.isLoading ||
-                (_isLoadingDefaults && categories.isEmpty))
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            else
-              SingleChildScrollView(
-                // Allow horizontal scrolling for chips
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children:
-                      categories.map((Category category) {
-                        bool isSelected = category.id == _selectedCategoryId;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                          child: ChoiceChip(
-                            label: Text(category.name),
-                            selected: isSelected,
-                            onSelected: (bool selected) {
-                              // ChoiceChip's onSelected is called when its state *should* change.
-                              // For single selection, if `selected` is true, it means this chip was tapped.
-                              if (selected) {
-                                setState(() {
-                                  _selectedCategoryId = category.id!;
-                                });
-                              }
-                              // If you want to allow deselecting to no category (_selectedCategoryId = null),
-                              // you'd need more logic here, but usually for categories, one is always selected.
+                  Wrap(
+                    spacing: 8.0, // Horizontal space between chips
+                    runSpacing: 8.0, // Vertical space between rows of chips
+                    children:
+                        categoryProvider.categories.map((Category category) {
+                          bool isSelected = category.id == _selectedCategoryId;
+                          return CategoryChip(
+                            category: category,
+                            isSelected: isSelected,
+                            onSelected: (int? selectedId) {
+                              // When a chip is selected, update the state
+                              setState(() {
+                                _selectedCategoryId = selectedId!;
+                              });
                             },
-                            labelStyle: TextStyle(
-                              fontSize: 13,
-                              color:
-                                  isSelected
-                                      ? Theme.of(
-                                        context,
-                                      ).colorScheme.onPrimaryContainer
-                                      : Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                            ),
-                            selectedColor:
-                                Theme.of(context).colorScheme.primaryContainer,
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.surfaceVariant.withOpacity(0.5),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            side:
-                                isSelected
-                                    ? null
-                                    : BorderSide(
-                                      color: Theme.of(context).dividerColor,
-                                    ), // Border for unselected
-                          ),
-                        );
-                      }).toList(),
-                ),
+                          );
+                        }).toList(),
+                  ),
+                ],
               ),
+            ),
 
             const SizedBox(height: 20),
 

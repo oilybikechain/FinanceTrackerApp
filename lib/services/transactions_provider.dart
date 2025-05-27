@@ -1,9 +1,23 @@
+import 'package:finance_tracker/data/category_class.dart';
 import 'package:finance_tracker/data/enums.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
 import 'package:finance_tracker/services/database_service.dart';
 import 'package:collection/collection.dart';
+
+class PieChartSectionDataWrapper {
+  final String title;
+  final double value;
+  final Color color;
+  final double percentage;
+
+  PieChartSectionDataWrapper({
+    required this.title,
+    required this.value,
+    required this.color,
+    required this.percentage,
+  });
+}
 
 class ChartDataPoint {
   final double x;
@@ -30,12 +44,15 @@ class TransactionsProvider with ChangeNotifier {
   DateTime? _currentEndDate;
   int? _currentLimit;
   TimePeriod? _currentPeriodForChart;
+  List<Category> _currentAllCategories = [];
   double _totalIncomeForPeriod = 0.0;
   double _totalExpenseForPeriod = 0.0;
   double _netChangeForPeriod = 0.0;
   double _maxChartYValue = 100.0;
   List<ChartDataPoint> _chartData = [];
   List<Transactions> _transactions = [];
+  List<PieChartSectionDataWrapper> _incomePieData = [];
+  List<PieChartSectionDataWrapper> _expensePieData = [];
 
   //Getters
   double get maxChartYValue => _maxChartYValue;
@@ -44,6 +61,8 @@ class TransactionsProvider with ChangeNotifier {
   double get totalIncomeForPeriod => _totalIncomeForPeriod;
   double get totalExpenseForPeriod => _totalExpenseForPeriod;
   double get netChangeForPeriod => _netChangeForPeriod;
+  List<PieChartSectionDataWrapper> get incomePieData => _incomePieData;
+  List<PieChartSectionDataWrapper> get expensePieData => _expensePieData;
 
   int _getWeekOfMonth(DateTime date) {
     final localDate = date.toLocal();
@@ -58,12 +77,14 @@ class TransactionsProvider with ChangeNotifier {
     DateTime? endDate,
     int? limit,
     TimePeriod? periodForChart,
+    required List<Category> allCategories,
   }) async {
     _currentAccountIds = accountIds;
     _currentStartDate = startDate;
     _currentEndDate = endDate;
     _currentLimit = limit;
     _currentPeriodForChart = periodForChart;
+    _currentAllCategories = _currentAllCategories;
 
     try {
       _transactions = await _dbService.getTransactions(
@@ -75,9 +96,12 @@ class TransactionsProvider with ChangeNotifier {
       print("BUG ${startDate}, ${endDate}, ${periodForChart}");
       if (startDate != null && endDate != null && periodForChart != null) {
         _prepareChartData(_transactions, periodForChart, startDate, endDate);
+        _preparePieChartData(_transactions, allCategories);
       } else {
         _chartData = [];
         _maxChartYValue = 100.0;
+        _incomePieData = [];
+        _expensePieData = [];
       }
       _calculatePeriodSummaries();
     } catch (e) {
@@ -261,6 +285,93 @@ class TransactionsProvider with ChangeNotifier {
     _maxChartYValue = currentMaxY;
   }
 
+  void _preparePieChartData(
+    List<Transactions> transactions,
+    List<Category> allCategories,
+  ) {
+    Map<int, double> incomeByCategory = {};
+    Map<int, double> expenseByCategory = {};
+    double currentTotalIncome = 0;
+    double currentTotalExpense = 0;
+
+    for (var tx in transactions) {
+      if (tx.type == TransactionType.income ||
+          tx.type == TransactionType.interest) {
+        incomeByCategory.update(
+          tx.categoryId,
+          (value) => value + tx.amount,
+          ifAbsent: () => tx.amount,
+        );
+        currentTotalIncome += tx.amount;
+      } else if (tx.type == TransactionType.expense) {
+        double absAmount = tx.amount.abs();
+        expenseByCategory.update(
+          tx.categoryId,
+          (value) => value + absAmount,
+          ifAbsent: () => absAmount,
+        );
+        currentTotalExpense += absAmount;
+      }
+    }
+
+    List<PieChartSectionDataWrapper> tempIncomeData = [];
+    incomeByCategory.forEach((categoryId, total) {
+      final category = allCategories.firstWhereOrNull(
+        (cat) => cat.id == categoryId,
+      );
+      if (category != null && total > 0) {
+        // Only add if there's an amount
+        tempIncomeData.add(
+          PieChartSectionDataWrapper(
+            title: category.name,
+            value: total,
+            color: category.color,
+            percentage:
+                currentTotalIncome == 0
+                    ? 0
+                    : (total / currentTotalIncome) * 100,
+          ),
+        );
+      }
+    });
+
+    List<PieChartSectionDataWrapper> tempExpenseData = [];
+    expenseByCategory.forEach((categoryId, total) {
+      final category = allCategories.firstWhereOrNull(
+        (cat) => cat.id == categoryId,
+      );
+      if (category != null && total > 0) {
+        tempExpenseData.add(
+          PieChartSectionDataWrapper(
+            title: category.name,
+            value: total,
+            color: category.color,
+            percentage:
+                currentTotalExpense == 0
+                    ? 0
+                    : (total / currentTotalExpense) * 100,
+          ),
+        );
+      }
+    });
+
+    // Sort by value descending for better pie chart appearance
+    tempIncomeData.sort((a, b) => b.value.compareTo(a.value));
+    tempExpenseData.sort((a, b) => b.value.compareTo(a.value));
+
+    _incomePieData = tempIncomeData;
+    _expensePieData = tempExpenseData;
+    _totalIncomeForPeriod = currentTotalIncome;
+    _totalExpenseForPeriod = currentTotalExpense;
+
+    print(
+      "_preparePieChartData: Income Data Count: ${_incomePieData.length}, Total Income: $_totalIncomeForPeriod",
+    );
+    print(
+      "_preparePieChartData: Expense Data Count: ${_expensePieData.length}, Total Expense: $_totalExpenseForPeriod",
+    );
+  }
+
   void _calculatePeriodSummaries() {
     double income = 0.0;
     double expense = 0.0;
@@ -290,6 +401,7 @@ class TransactionsProvider with ChangeNotifier {
         endDate: _currentEndDate,
         limit: _currentLimit,
         periodForChart: _currentPeriodForChart,
+        allCategories: _currentAllCategories,
       );
 
       notifyListeners();
@@ -317,6 +429,7 @@ class TransactionsProvider with ChangeNotifier {
           endDate: _currentEndDate,
           limit: _currentLimit,
           periodForChart: _currentPeriodForChart,
+          allCategories: _currentAllCategories,
         );
         notifyListeners();
       }
@@ -338,6 +451,7 @@ class TransactionsProvider with ChangeNotifier {
         endDate: _currentEndDate,
         limit: _currentLimit,
         periodForChart: _currentPeriodForChart,
+        allCategories: _currentAllCategories,
       );
 
       notifyListeners();
