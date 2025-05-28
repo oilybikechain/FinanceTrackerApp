@@ -1,26 +1,34 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsService {
-  static const String _defaultCategoryIdKey = 'default_transaction_category_id';
+  static const String _showChartsKey = 'show_charts_preference';
+  static const String _changeToPieChartKey = 'chart_type_preference';
 
-  Future<void> setDefaultTransactionCategoryId(int? categoryId) async {
+  // --- Chart Visibility Preference ---
+  Future<void> setShowChartsPreference(bool show) async {
     final prefs = await SharedPreferences.getInstance();
-    if (categoryId == null) {
-      await prefs.setInt(
-        _defaultCategoryIdKey,
-        1,
-      ); // Remove if setting to no default
-      print("Default transaction category cleared.");
-    } else {
-      await prefs.setInt(_defaultCategoryIdKey, categoryId);
-      print("Default transaction category set to ID: $categoryId");
-    }
+    await prefs.setBool(_showChartsKey, show);
+    print("Chart visibility preference saved: $show");
   }
 
-  Future<int?> getDefaultTransactionCategoryId() async {
+  Future<bool> getShowChartsPreference() async {
     final prefs = await SharedPreferences.getInstance();
-    final int? categoryId = prefs.getInt(_defaultCategoryIdKey);
-    print("Loaded default transaction category ID: $categoryId");
-    return categoryId;
+    // Default to true (show charts) if no preference is saved
+    return prefs.getBool(_showChartsKey) ?? true;
+  }
+
+  // --- Chart Type Preference ---
+  Future<void> setChartTypePreference(bool changeToPieChart) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(
+      _changeToPieChartKey,
+      changeToPieChart,
+    ); // Store enum name as string
+    print("Chart type preference saved: ${changeToPieChart}");
+  }
+
+  Future<bool> getChartTypePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_changeToPieChartKey) ?? false;
   }
 }

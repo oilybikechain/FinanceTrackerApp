@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:finance_tracker/data/category_class.dart';
 import 'package:finance_tracker/services/database_service.dart';
-import 'package:finance_tracker/services/settings_service.dart'; // For default transaction category preference
 
 class CategoryProvider with ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
-  final SettingsService _settingsService =
-      SettingsService(); // For default category
 
   List<Category> _categories = [];
   bool _isLoading = false;
@@ -20,6 +17,8 @@ class CategoryProvider with ChangeNotifier {
   Category? _userDefaultTransactionCategory;
   Category? get userDefaultTransactionCategory =>
       _userDefaultTransactionCategory;
+
+  final int defaultId = 1;
 
   CategoryProvider() {
     // Fetch categories and then the user's default preference when provider is created
@@ -50,8 +49,6 @@ class CategoryProvider with ChangeNotifier {
 
   // Load the user's preferred default category (object)
   Future<void> loadUserDefaultTransactionCategory() async {
-    final int? defaultId =
-        await _settingsService.getDefaultTransactionCategoryId();
     if (defaultId != null && _categories.isNotEmpty) {
       _userDefaultTransactionCategory = _categories.firstWhere(
         (cat) => cat.id == defaultId,
@@ -74,7 +71,6 @@ class CategoryProvider with ChangeNotifier {
 
   // Set user's default transaction category preference
   Future<void> setUserDefaultTransactionCategory(Category? category) async {
-    await _settingsService.setDefaultTransactionCategoryId(category?.id);
     _userDefaultTransactionCategory = category; // Update local state
     notifyListeners();
     print("CategoryProvider: User default set to: ${category?.name}");
@@ -163,16 +159,6 @@ class CategoryProvider with ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      // Check if this category is the user's default
-      final currentDefaultId =
-          await _settingsService.getDefaultTransactionCategoryId();
-      if (currentDefaultId == id) {
-        await _settingsService.setDefaultTransactionCategoryId(
-          null,
-        ); // Clear default
-        _userDefaultTransactionCategory = null; // Update local state
-      }
-
       int rowsAffected = await _dbService.deleteCategory(id);
       if (rowsAffected > 0) {
         await fetchCategories(); // This will also re-evaluate the fallback default if needed

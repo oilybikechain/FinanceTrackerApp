@@ -14,6 +14,22 @@ class homePageBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (chartPoints.isEmpty) {
+      return SizedBox(
+        height: 150,
+        width: MediaQuery.of(context).size.width,
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Center(
+            child: Text(
+              "No data for this period.",
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     double chartwidth = chartPoints.length * 50;
     final screenwidth = MediaQuery.of(context).size.width;
     if (chartwidth < screenwidth) {
@@ -22,7 +38,7 @@ class homePageBarChart extends StatelessWidget {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Container(
-        height: 200,
+        height: 150,
         width: chartwidth,
         child: BarChart(
           BarChartData(

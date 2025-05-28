@@ -53,6 +53,7 @@ class TransactionsProvider with ChangeNotifier {
   List<Transactions> _transactions = [];
   List<PieChartSectionDataWrapper> _incomePieData = [];
   List<PieChartSectionDataWrapper> _expensePieData = [];
+  bool isAllAccountsView = false;
 
   //Getters
   double get maxChartYValue => _maxChartYValue;
@@ -84,7 +85,9 @@ class TransactionsProvider with ChangeNotifier {
     _currentEndDate = endDate;
     _currentLimit = limit;
     _currentPeriodForChart = periodForChart;
-    _currentAllCategories = _currentAllCategories;
+    _currentAllCategories = allCategories;
+    isAllAccountsView =
+        (_currentAccountIds == null || _currentAccountIds!.isEmpty);
 
     try {
       _transactions = await _dbService.getTransactions(
@@ -93,9 +96,10 @@ class TransactionsProvider with ChangeNotifier {
         endDate: endDate,
         limit: limit,
       );
-      print("BUG ${startDate}, ${endDate}, ${periodForChart}");
+      print("BUG ${accountIds} ${startDate}, ${endDate}, ${periodForChart}");
       if (startDate != null && endDate != null && periodForChart != null) {
         _prepareChartData(_transactions, periodForChart, startDate, endDate);
+        print(_currentAllCategories);
         _preparePieChartData(_transactions, allCategories);
       } else {
         _chartData = [];
@@ -141,6 +145,10 @@ class TransactionsProvider with ChangeNotifier {
         double dailyIncome = 0;
         double dailyExpense = 0;
         for (var tx in transactions) {
+          if (isAllAccountsView && tx.type == TransactionType.transfer) {
+            continue;
+          }
+
           if (tx.amount > 0) dailyIncome += tx.amount;
           if (tx.amount < 0) dailyExpense += tx.amount.abs();
         }
@@ -177,6 +185,9 @@ class TransactionsProvider with ChangeNotifier {
           double expense = 0;
           if (groupedTransactions.containsKey(i)) {
             for (var tx in groupedTransactions[i]!) {
+              if (isAllAccountsView && tx.type == TransactionType.transfer) {
+                continue;
+              }
               if (tx.amount > 0) income += tx.amount;
               if (tx.amount < 0) expense += tx.amount.abs();
             }
@@ -214,6 +225,9 @@ class TransactionsProvider with ChangeNotifier {
           double expense = 0;
           if (groupedTransactions.containsKey(weekNum)) {
             for (var tx in groupedTransactions[weekNum]!) {
+              if (isAllAccountsView && tx.type == TransactionType.transfer) {
+                continue;
+              }
               if (tx.amount > 0) income += tx.amount;
               if (tx.amount < 0) expense += tx.amount.abs();
             }
@@ -262,6 +276,9 @@ class TransactionsProvider with ChangeNotifier {
           double expense = 0;
           if (groupedTransactions.containsKey(i)) {
             for (var tx in groupedTransactions[i]!) {
+              if (isAllAccountsView && tx.type == TransactionType.transfer) {
+                continue;
+              }
               if (tx.amount > 0) income += tx.amount;
               if (tx.amount < 0) expense += tx.amount.abs();
             }
@@ -294,9 +311,10 @@ class TransactionsProvider with ChangeNotifier {
     double currentTotalIncome = 0;
     double currentTotalExpense = 0;
 
+    print("PIE CHART DATA BEING PREPPED");
+
     for (var tx in transactions) {
-      if (tx.type == TransactionType.income ||
-          tx.type == TransactionType.interest) {
+      if (tx.type == TransactionType.income) {
         incomeByCategory.update(
           tx.categoryId,
           (value) => value + tx.amount,
@@ -311,6 +329,25 @@ class TransactionsProvider with ChangeNotifier {
           ifAbsent: () => absAmount,
         );
         currentTotalExpense += absAmount;
+      } else if (tx.type == TransactionType.transfer) {
+        if (_currentAccountIds != null) {
+          if (tx.amount > 0) {
+            incomeByCategory.update(
+              tx.categoryId,
+              (value) => value + tx.amount,
+              ifAbsent: () => tx.amount,
+            );
+            currentTotalIncome += tx.amount;
+          } else {
+            double absAmount = tx.amount.abs();
+            expenseByCategory.update(
+              tx.categoryId,
+              (value) => value + absAmount,
+              ifAbsent: () => absAmount,
+            );
+            currentTotalExpense += absAmount;
+          }
+        }
       }
     }
 
@@ -377,6 +414,9 @@ class TransactionsProvider with ChangeNotifier {
     double expense = 0.0;
 
     for (final transaction in _transactions) {
+      if (isAllAccountsView && transaction.type == TransactionType.transfer) {
+        continue;
+      }
       if (transaction.amount > 0) {
         income += transaction.amount;
       } else if (transaction.amount < 0) {
@@ -459,6 +499,47 @@ class TransactionsProvider with ChangeNotifier {
     } catch (e) {
       print("Error deleting transaction: $e");
       return false;
+    }
+  }
+
+  Future<bool> addTransfer({
+    required int fromAccountId,
+    required int toAccountId,
+    required double amount,
+    required DateTime timestamp,
+    String? description,
+    required int transferCategoryId, // Pass this from the form
+  }) async {
+    // _isLoading = true; notifyListeners();
+    try {
+      bool success = await _dbService.insertTransfer(
+        fromAccountId: fromAccountId,
+        toAccountId: toAccountId,
+        amount: amount, // DB service handles positive amount
+        timestamp: timestamp,
+        description: description,
+        transferCategoryId: transferCategoryId,
+      );
+      if (success) {
+        // Re-fetch transactions to update UI for both accounts involved
+        // and also to update pie charts, bar charts, etc.
+        await fetchTransactions(
+          accountIds: _currentAccountIds, // Use currently viewed filters
+          startDate: _currentStartDate,
+          endDate: _currentEndDate,
+          periodForChart: _currentPeriodForChart, // If using bar chart
+          allCategories: _currentAllCategories,
+        );
+        return true;
+      }
+      // _setError("Failed to record transfer.");
+      return false;
+    } catch (e) {
+      print("Error adding transfer in provider: $e");
+      // _setError("An error occurred during transfer.");
+      return false;
+    } finally {
+      // _isLoading = false; notifyListeners();
     }
   }
 }

@@ -1,33 +1,12 @@
 // lib/data/enums.dart
 
-enum TransactionType {
-  income,
-  expense,
-  transfer,
-  interest, // Added for automatically generated interest transactions
-}
+enum TransactionType { income, expense, transfer }
 
-enum RecurringTransactionType {
-  income,
-  expense,
-  transfer,
-  // Note: 'interest' is usually handled by separate logic based on account settings,
-  // not typically as a user-defined recurring transaction template.
-}
+enum RecurringTransactionType { income, expense, transfer }
 
-enum Frequency {
-  daily,
-  weekly,
-  monthly,
-  yearly,
-}
+enum Frequency { daily, weekly, monthly, yearly }
 
-enum TimePeriod {
-  day,
-  week,
-  month,
-  year
-}
+enum TimePeriod { day, week, month, year }
 
 // Helper extension for robust enum parsing from String (optional but recommended)
 extension EnumParser<T extends Enum> on List<T> {

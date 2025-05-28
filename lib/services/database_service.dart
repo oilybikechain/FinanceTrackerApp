@@ -101,6 +101,11 @@ class DatabaseService {
       ''');
 
     batch.insert('categories', {'name': 'General', 'is_system_default': 1});
+    batch.insert('categories', {
+      'name': 'Transfer',
+      'is_system_default': 1,
+      'color_value': '${0xFF0000FF}',
+    });
     await batch.commit(noResult: true);
     print("Database tables created!");
   }
@@ -269,8 +274,56 @@ class DatabaseService {
   }
 
   Future<int> deleteTransaction(int id) async {
-    Database db = await database;
-    return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    final db = await database;
+    int totalRowsAffected = 0;
+
+    try {
+      await db.transaction((txn) async {
+        // 1. Get the transaction to be deleted to find its peer
+        final List<Map<String, dynamic>> maps = await txn.query(
+          'transactions',
+          columns: ['transfer_peer_transaction_id', 'type'],
+          where: 'id = ?',
+          whereArgs: [id],
+          limit: 1,
+        );
+
+        int? peerId;
+        bool isTransfer = false;
+        if (maps.isNotEmpty) {
+          peerId = maps.first['transfer_peer_transaction_id'] as int?;
+          // Also check type if you want to be super sure it's a transfer
+          // String type = maps.first['type'] as String;
+          // if (type == TransactionType.transfer.name) isTransfer = true;
+          if (peerId != null)
+            isTransfer = true; // If peerId exists, it's part of a transfer
+        }
+
+        // 2. Delete the primary transaction
+        int deletedRows = await txn.delete(
+          'transactions',
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+        totalRowsAffected += deletedRows;
+
+        // 3. If it was a transfer and had a peer, delete the peer
+        if (isTransfer && peerId != null && deletedRows > 0) {
+          print("Deleting peer transaction ID: $peerId f  or original ID: $id");
+          int peerDeletedRows = await txn.delete(
+            'transactions',
+            where: 'id = ?',
+            whereArgs: [peerId],
+          );
+          // Optionally, verify peerDeletedRows > 0
+          // totalRowsAffected += peerDeletedRows; // If you want to count both
+        }
+      });
+      return totalRowsAffected; // Returns rows affected for the primary deletion
+    } catch (e) {
+      print("Error during smart delete transaction: $e");
+      return 0; // Indicate failure or rethrow
+    }
   }
 
   // Add specific query methods as needed, e.g., calculate balance:
@@ -635,5 +688,101 @@ class DatabaseService {
           'id = ? AND is_system_default = 0', // Only delete if not a system default
       whereArgs: [id],
     );
+  }
+
+  // =====================================================================
+  // CRUD Operations for Transfers
+  // =====================================================================
+
+  Future<int> _insertSingleTransaction(
+    DatabaseExecutor txn,
+    Transactions transaction,
+  ) async {
+    // This method assumes it's called within an existing DB transaction 'txn'
+    return await txn.insert(
+      'transactions',
+      transaction.toMap()..remove('id'),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> _updateTransactionPeerId(
+    DatabaseExecutor txn,
+    int transactionId,
+    int peerId,
+  ) async {
+    return await txn.update(
+      'transactions',
+      {'transfer_peer_transaction_id': peerId},
+      where: 'id = ?',
+      whereArgs: [transactionId],
+    );
+  }
+
+  Future<bool> insertTransfer({
+    required int fromAccountId,
+    required int toAccountId,
+    required double amount, // Always positive, sign determined by type
+    required DateTime timestamp,
+    String? description,
+    required int transferCategoryId, // ID of your "Transfer" category
+  }) async {
+    if (fromAccountId == toAccountId) {
+      print("Error: Cannot transfer to the same account.");
+      return false; // Or throw exception
+    }
+    if (amount <= 0) {
+      print("Error: Transfer amount must be positive.");
+      return false;
+    }
+
+    final db = await database;
+    try {
+      await db.transaction((txn) async {
+        // 1. Create the outgoing transaction (expense from source)
+        final outgoingTransaction = Transactions(
+          accountId: fromAccountId,
+          type: TransactionType.transfer, // Or a specific "transfer_out"
+          amount: -amount.abs(), // Negative amount
+          timestamp: timestamp,
+          description: description,
+          categoryId: transferCategoryId,
+        );
+        int outgoingId = await _insertSingleTransaction(
+          txn,
+          outgoingTransaction,
+        );
+        if (outgoingId == 0)
+          throw Exception("Failed to insert outgoing transfer part.");
+
+        // 2. Create the incoming transaction (income to destination)
+        final incomingTransaction = Transactions(
+          accountId: toAccountId,
+          type: TransactionType.transfer, // Or a specific "transfer_in"
+          amount: amount.abs(), // Positive amount
+          timestamp: timestamp,
+          description: description,
+          categoryId: transferCategoryId,
+          // Link to the outgoing transaction temporarily
+          // transferPeerTransactionId: outgoingId, // Will be updated below
+        );
+        int incomingId = await _insertSingleTransaction(
+          txn,
+          incomingTransaction,
+        );
+        if (incomingId == 0)
+          throw Exception("Failed to insert incoming transfer part.");
+
+        // 3. Update both transactions with each other's ID
+        await _updateTransactionPeerId(txn, outgoingId, incomingId);
+        await _updateTransactionPeerId(txn, incomingId, outgoingId);
+
+        print("Transfer successful: $outgoingId <-> $incomingId");
+      });
+      return true; // Transaction successful
+    } catch (e) {
+      print("Error inserting transfer: $e");
+      return false; // Transaction failed
+    }
   }
 }

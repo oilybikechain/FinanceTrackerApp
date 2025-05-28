@@ -39,9 +39,8 @@ class _TransactionsFormState extends State<TransactionsForm> {
   DateTime _transactionDateTime = DateTime.now();
   TransactionType? _selectedtransactionType;
   int? _selectedAccountId;
-
+  int? _selectedDestinationAccountId;
   int _selectedCategoryId = 1;
-
   bool _isLoadingDefaults = false;
 
   @override
@@ -66,6 +65,10 @@ class _TransactionsFormState extends State<TransactionsForm> {
     }
 
     if (widget.existingTransaction != null) {
+      if (widget.existingTransaction!.type == TransactionType.transfer) {
+        //TODO}
+      }
+
       _isEditMode = true;
       final transaction = widget.existingTransaction!;
 
@@ -76,7 +79,7 @@ class _TransactionsFormState extends State<TransactionsForm> {
       _amountController.text = initialAmount.toString();
 
       _dollarValue = initialAmount.floorToDouble(); // Get the whole dollar part
-      _centValue = ((initialAmount - _dollarValue) * 100);
+      _centValue = ((initialAmount - _dollarValue) * 100).roundToDouble();
 
       _selectedtransactionType = transaction.type;
 
@@ -97,8 +100,10 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
       if (accounts.isNotEmpty) {
         _selectedAccountId = accounts.first.id;
+        _selectedDestinationAccountId = null;
       } else {
         _selectedAccountId = null;
+        _selectedDestinationAccountId = null;
       }
 
       _selectedCategoryId = 1;
@@ -165,6 +170,7 @@ class _TransactionsFormState extends State<TransactionsForm> {
     final account = _selectedAccountId;
     final selectedCategoryId = _selectedCategoryId;
     final transactionTimestamp = _transactionDateTime;
+    final transferCategoryId = 2;
 
     final transactionsProvider = Provider.of<TransactionsProvider>(
       context,
@@ -174,8 +180,7 @@ class _TransactionsFormState extends State<TransactionsForm> {
     final messenger = ScaffoldMessenger.of(context); // Store ScaffoldMessenger
     final theme = Theme.of(context);
     double finalAmount =
-        (transactionType == TransactionType.income ||
-                transactionType == TransactionType.interest)
+        (transactionType == TransactionType.income)
             ? amount.abs()
             : -amount.abs();
 
@@ -202,17 +207,43 @@ class _TransactionsFormState extends State<TransactionsForm> {
         updatedTransaction,
       );
     } else {
-      print("Creating new Transaction");
-      final newTransaction = Transactions(
-        description: description,
-        amount: finalAmount,
-        accountId: account!,
-        type: transactionType!,
-        timestamp: transactionTimestamp, // <<< USE SELECTED TIMESTAMP
-        categoryId: selectedCategoryId,
-      );
-      // Await the result directly from the provider
-      success = await transactionsProvider.addTransaction(newTransaction);
+      if (_selectedtransactionType == TransactionType.transfer) {
+        // --- Handle Transfer ---
+        if (_selectedDestinationAccountId == null ||
+            _selectedAccountId == _selectedDestinationAccountId) {
+          if (mounted) {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('Invalid source/destination for transfer.'),
+              ),
+            );
+          }
+          success = false;
+          return;
+        }
+        print("Creating new Transfer");
+        success = await transactionsProvider.addTransfer(
+          fromAccountId: _selectedAccountId!,
+          toAccountId: _selectedDestinationAccountId!,
+          amount: amount, // Pass positive amount, service handles sign
+          timestamp: transactionTimestamp,
+          description: description.isEmpty ? "Transfer" : description,
+          transferCategoryId:
+              transferCategoryId, // Use the "Transfer" category ID
+        );
+      } else {
+        print("Creating new Transaction");
+        final newTransaction = Transactions(
+          description: description,
+          amount: finalAmount,
+          accountId: account!,
+          type: transactionType!,
+          timestamp: transactionTimestamp, // <<< USE SELECTED TIMESTAMP
+          categoryId: selectedCategoryId,
+        );
+        // Await the result directly from the provider
+        success = await transactionsProvider.addTransaction(newTransaction);
+      }
     }
 
     if (!mounted) {
@@ -312,40 +343,94 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
             const SizedBox(height: 20),
 
-            DropdownButtonFormField<int>(
-              // Specify type as int (for account ID)
-              value:
-                  _selectedAccountId, // Bind to state variable holding the ID
-              decoration: const InputDecoration(
-                labelText: 'Account',
-                border: OutlineInputBorder(),
-              ),
-              // Create items from the accounts list fetched from the provider
-              items:
-                  accounts.map((Account account) {
-                    // Iterate over Account objects
-                    return DropdownMenuItem<int>(
-                      value:
-                          account
-                              .id, // The value of the item is the account's ID
-                      child: Text(
-                        account.name,
-                      ), // The text shown is the account's name
-                    );
-                  }).toList(), // Convert the mapped items to a List
-              // Update state when user selects a different account
-              onChanged: (int? newValue) {
-                setState(() {
-                  _selectedAccountId = newValue;
-                });
-              },
-              // Validation: Ensure an account is selected
-              validator: (value) {
-                if (value == null) {
-                  return 'Please select an account.';
-                }
-                return null; // Valid
-              },
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: DropdownButtonFormField<int>(
+                    value: _selectedAccountId,
+                    decoration: const InputDecoration(
+                      labelText: 'Account',
+                      border: OutlineInputBorder(),
+                    ),
+
+                    items:
+                        accounts.map((Account account) {
+                          return DropdownMenuItem<int>(
+                            value: account.id,
+                            child: Text(account.name),
+                          );
+                        }).toList(),
+
+                    onChanged: (int? newValue) {
+                      setState(() {
+                        _selectedAccountId = newValue;
+                      });
+                    },
+
+                    validator: (value) {
+                      if (value == null) {
+                        return 'Please select an account.';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+
+                Expanded(
+                  flex: 1,
+                  child:
+                      _selectedtransactionType == TransactionType.transfer
+                          ? Icon(Icons.arrow_right_alt, size: 50)
+                          : SizedBox(width: 50),
+                ),
+
+                Expanded(
+                  flex: 2,
+                  child:
+                      _selectedtransactionType == TransactionType.transfer
+                          ? DropdownButtonFormField<int>(
+                            value: _selectedDestinationAccountId,
+                            decoration: const InputDecoration(
+                              labelText: 'Account',
+                              border: OutlineInputBorder(),
+                            ),
+
+                            items:
+                                accounts
+                                    .where(
+                                      (account) =>
+                                          account.id != _selectedAccountId,
+                                    )
+                                    .map((Account account) {
+                                      return DropdownMenuItem<int>(
+                                        value: account.id,
+                                        child: Text(account.name),
+                                      );
+                                    })
+                                    .toList(),
+                            onChanged: (int? newValue) {
+                              setState(() {
+                                _selectedDestinationAccountId = newValue;
+                              });
+                            },
+                            validator: (value) {
+                              if (_selectedtransactionType ==
+                                      TransactionType.transfer &&
+                                  value == null) {
+                                return 'Select destination account.';
+                              }
+                              if (_selectedtransactionType ==
+                                      TransactionType.transfer &&
+                                  value == _selectedAccountId) {
+                                return 'Cannot transfer to the same account.';
+                              }
+                              return null;
+                            },
+                          )
+                          : SizedBox(width: 30),
+                ),
+              ],
             ),
 
             const SizedBox(height: 20),
@@ -355,6 +440,10 @@ class _TransactionsFormState extends State<TransactionsForm> {
                 ButtonSegment(
                   value: TransactionType.expense,
                   label: Text('Expense'),
+                ),
+                ButtonSegment(
+                  value: TransactionType.transfer,
+                  label: Text("Transfer"),
                 ),
                 ButtonSegment(
                   value: TransactionType.income,
@@ -382,6 +471,9 @@ class _TransactionsFormState extends State<TransactionsForm> {
                     } else if (_selectedtransactionType ==
                         TransactionType.income) {
                       return Colors.green;
+                    } else if (_selectedtransactionType ==
+                        TransactionType.transfer) {
+                      return Colors.blue;
                     }
                   }
                   return null; // Use default background color otherwise (usually transparent or theme-based)
@@ -525,39 +617,44 @@ class _TransactionsFormState extends State<TransactionsForm> {
               },
             ),
 
-            Padding(
-              // Add overall padding for the category section
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Category:",
-                    style: textTheme.titleSmall,
-                  ), // Section label
-                  const SizedBox(height: 8),
+            _selectedtransactionType == TransactionType.transfer
+                ? SizedBox.shrink()
+                : Padding(
+                  // Add overall padding for the category section
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Category:",
+                        style: textTheme.titleSmall,
+                      ), // Section label
+                      const SizedBox(height: 8),
 
-                  Wrap(
-                    spacing: 8.0, // Horizontal space between chips
-                    runSpacing: 8.0, // Vertical space between rows of chips
-                    children:
-                        categoryProvider.categories.map((Category category) {
-                          bool isSelected = category.id == _selectedCategoryId;
-                          return CategoryChip(
-                            category: category,
-                            isSelected: isSelected,
-                            onSelected: (int? selectedId) {
-                              // When a chip is selected, update the state
-                              setState(() {
-                                _selectedCategoryId = selectedId!;
-                              });
-                            },
-                          );
-                        }).toList(),
+                      Wrap(
+                        spacing: 8.0, // Horizontal space between chips
+                        runSpacing: 8.0, // Vertical space between rows of chips
+                        children:
+                            categoryProvider.categories.map((
+                              Category category,
+                            ) {
+                              bool isSelected =
+                                  category.id == _selectedCategoryId;
+                              return CategoryChip(
+                                category: category,
+                                isSelected: isSelected,
+                                onSelected: (int? selectedId) {
+                                  // When a chip is selected, update the state
+                                  setState(() {
+                                    _selectedCategoryId = selectedId!;
+                                  });
+                                },
+                              );
+                            }).toList(),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
 
             const SizedBox(height: 20),
 

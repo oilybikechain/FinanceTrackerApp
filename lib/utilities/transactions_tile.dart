@@ -35,11 +35,10 @@ class TransactionsTile extends StatelessWidget {
       'hh:mm a',
     ).format(transactionData.timestamp.toLocal());
 
-    if (transactionData.type == TransactionType.income ||
-        transactionData.type == TransactionType.interest) {
+    if (transactionData.amount > 0) {
       amountText = '+\$${transactionData.amount.abs().toStringAsFixed(2)}';
       amountColor = Colors.green;
-    } else if (transactionData.type == TransactionType.expense) {
+    } else if (transactionData.amount < 0) {
       amountText = '-\$${transactionData.amount.abs().toStringAsFixed(2)}';
       amountColor = const Color.fromARGB(255, 255, 69, 69);
     }

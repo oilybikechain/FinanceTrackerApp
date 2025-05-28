@@ -5,6 +5,7 @@ import 'package:finance_tracker/data/accounts_class.dart';
 import 'package:finance_tracker/data/enums.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
 import 'package:finance_tracker/services/category_provider.dart';
+import 'package:finance_tracker/services/settings_service.dart';
 import 'package:finance_tracker/services/transactions_provider.dart';
 import 'package:finance_tracker/utilities/app_drawer.dart';
 import 'package:finance_tracker/utilities/home_bar_chart.dart';
@@ -77,14 +78,43 @@ class _HomePageState extends State<HomePage> {
   List<Account> _accountsForDropdown = [];
   DateTime _currentReferenceDate = DateTime.now();
   bool _isPageLoading = false;
+  bool _showCharts = false;
+  bool _toggleToPieChart = false;
+  final SettingsService _settingsService = SettingsService();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPreferences();
       _fetchHomePageData();
       _fetchPeriodEndBalance();
     });
+  }
+
+  Future<void> _loadPreferences() async {
+    if (!mounted) return;
+    _showCharts = await _settingsService.getShowChartsPreference();
+    _toggleToPieChart = await _settingsService.getChartTypePreference();
+    print(
+      "Loaded preferences: showCharts=$_showCharts, chartType=$_toggleToPieChart",
+    );
+  }
+
+  void _toggleChartVisibility() async {
+    setState(() {
+      _showCharts = !_showCharts;
+    });
+    await _settingsService.setShowChartsPreference(_showCharts);
+    // No need to re-fetch data, just hiding/showing
+  }
+
+  void _togglePieChart() async {
+    setState(() {
+      _toggleToPieChart = !_toggleToPieChart;
+    });
+    await _settingsService.setChartTypePreference(_toggleToPieChart);
+    // No need to re-fetch data, just hiding/showing
   }
 
   DateRange _getStartEndDate() {
@@ -707,10 +737,34 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               Expanded(
-                flex: 2,
+                flex: 1,
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: SizedBox(width: 24),
+                  child: IconButton(
+                    icon: Icon(
+                      _showCharts ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: _toggleChartVisibility, // Call navigation method
+                    tooltip: _showCharts ? 'Hide Charts' : 'Show Charts',
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 1,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    icon: Icon(
+                      _toggleToPieChart
+                          ? Icons.bar_chart_rounded
+                          : Icons.pie_chart,
+                    ),
+                    onPressed: _togglePieChart, // Call navigation method
+                    tooltip:
+                        _toggleToPieChart
+                            ? 'Show Bar Charts'
+                            : 'Show Pie Chart',
+                  ),
                 ),
               ),
               Expanded(
@@ -755,27 +809,31 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
 
-          homePieChart(
-            title: 'Expense by Category',
-            pieData: pieChartExpenseData,
-            totalValue: totalExpense,
-          ),
+          _showCharts
+              ? _toggleToPieChart
+                  ? Row(
+                    children: [
+                      homePieChart(
+                        title: 'Expenses',
+                        pieData: pieChartExpenseData,
+                        totalValue: totalExpense,
+                      ),
 
-          homePieChart(
-            title: 'Income by Category',
-            pieData: pieChartIncomeData,
-            totalValue: totalIncome,
-          ),
+                      homePieChart(
+                        title: 'Income',
+                        pieData: pieChartIncomeData,
+                        totalValue: totalIncome,
+                      ),
+                    ],
+                  )
+                  : homePageBarChart(
+                    maxYValueForChart: maxYValueForChart,
+                    chartPoints: chartPoints,
+                  )
+              : SizedBox.shrink(),
 
-          homePageBarChart(
-            maxYValueForChart: maxYValueForChart,
-            chartPoints: chartPoints,
-          ),
-
-          const Divider(height: 20),
-
+          // _showCharts ? Divider(height: 1) : SizedBox.shrink(),
           Expanded(
-            // Use Expanded to make the list take remaining space
             child:
                 transactionsProvider.transactions.isEmpty
                     ? const Center(
