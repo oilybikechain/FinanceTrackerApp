@@ -75,21 +75,25 @@ class DatabaseService {
     );
 
     batch.execute('''
-      CREATE TABLE recurring_transactions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          account_id INTEGER NOT NULL,
-          type TEXT NOT NULL, -- Stores RecurringTransactionType.name
-          amount REAL NOT NULL,
-          description TEXT,
-          frequency TEXT NOT NULL, -- Stores Frequency.name
-          start_date TEXT NOT NULL,
-          next_due_date TEXT NOT NULL,
-          end_date TEXT NULL,
-          transfer_to_account_id INTEGER NULL,
-          FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
-          FOREIGN KEY (transfer_to_account_id) REFERENCES accounts(id) ON DELETE SET NULL
-      );
-    ''');
+    CREATE TABLE recurring_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        description TEXT,
+        frequency TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        next_due_date TEXT NOT NULL,
+        end_date TEXT NULL,
+        transfer_to_account_id INTEGER NULL,
+        category_id INTEGER NOT NULL DEFAULT 1, 
+        is_interest_rule INTEGER NOT NULL DEFAULT 0,
+        is_system_generated INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+        FOREIGN KEY (transfer_to_account_id) REFERENCES accounts(id) ON DELETE SET NULL,
+        FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT 
+    );
+  ''');
 
     batch.execute('''
       CREATE TABLE categories (
@@ -105,6 +109,11 @@ class DatabaseService {
       'name': 'Transfer',
       'is_system_default': 1,
       'color_value': '${0xFF0000FF}',
+    });
+    batch.insert('categories', {
+      'name': 'Interest',
+      'is_system_default': 1,
+      'color_value': '${0xFF00FF00}',
     });
     await batch.commit(noResult: true);
     print("Database tables created!");

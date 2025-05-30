@@ -1,4 +1,6 @@
 import 'package:finance_tracker/pages/categories_page.dart';
+import 'package:finance_tracker/pages/recurring_transactions_page.dart';
+import 'package:finance_tracker/pages/setup_page.dart';
 import 'package:finance_tracker/services/account_provider.dart';
 import 'package:finance_tracker/services/category_provider.dart';
 import 'package:finance_tracker/services/recurring_transactions_provider.dart';
@@ -41,6 +43,8 @@ class MyApp extends StatelessWidget {
         '/accountspage': (context) => AccountsPage(),
         '/statisticspage': (context) => StatisticsPage(),
         '/categoriespage': (context) => CategoriesPage(),
+        '/recurringtransactionspage': (context) => RecurringTransactionsPage(),
+        '/setuppage': (context) => SetupPage(),
       },
     );
   }

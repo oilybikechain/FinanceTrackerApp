@@ -46,18 +46,10 @@ class AppDrawer extends StatelessWidget {
           ),
 
           ListTile(
-            leading: Icon(Icons.account_balance),
-            title: Text("A C C O U N T S"),
+            leading: Icon(Icons.settings),
+            title: Text("S E T U P"),
             onTap: () {
-              navigateTo("/accountspage", context);
-            },
-          ),
-
-          ListTile(
-            leading: Icon(Icons.category_outlined),
-            title: Text("C A T E G O R I E S"),
-            onTap: () {
-              navigateTo("/categoriespage", context);
+              navigateTo("/setuppage", context);
             },
           ),
 

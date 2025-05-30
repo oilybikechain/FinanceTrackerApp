@@ -31,7 +31,9 @@ class _CategoriesPageState extends State<CategoriesPage> {
       if (result == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Category Created!'),
+            content: Text(
+              categoryToEdit != null ? 'Category Edited!' : 'Category Created!',
+            ),
             duration: const Duration(seconds: 2),
           ),
         );
