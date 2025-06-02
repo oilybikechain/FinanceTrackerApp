@@ -1,7 +1,12 @@
+import 'package:finance_tracker/data/accounts_class.dart';
+import 'package:finance_tracker/data/category_class.dart';
 import 'package:finance_tracker/data/recurring_transactions_class.dart';
+import 'package:finance_tracker/services/account_provider.dart';
+import 'package:finance_tracker/services/category_provider.dart';
 import 'package:finance_tracker/services/recurring_transactions_provider.dart';
 import 'package:finance_tracker/utilities/app_drawer.dart';
 import 'package:finance_tracker/utilities/recurring_transactions_form.dart';
+import 'package:finance_tracker/utilities/recurring_transactions_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -66,11 +71,173 @@ class _RecurringTransactionsPageState extends State<RecurringTransactionsPage> {
     super.didChangeDependencies();
   }
 
+  Future<void> _onDelete(
+    RecurringTransaction recurringTransactionToDelete,
+  ) async {
+    // 2. Show Confirmation Dialog
+    final currentContext = context;
+    final bool? confirm = await showDialog<bool>(
+      context: currentContext,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Confirm Deletion'),
+            content: Text(
+              'Are you sure you want to delete the recurring transaction: "${recurringTransactionToDelete.description}"?\nThis will not delete pass transactions',
+            ),
+            actions: [
+              TextButton(
+                child: const Text('Cancel'),
+                onPressed:
+                    () =>
+                        Navigator.of(ctx).pop(false), // Return false on cancel
+              ),
+              TextButton(
+                child: Text(
+                  'Delete',
+                  style: TextStyle(
+                    color: Theme.of(currentContext).colorScheme.error,
+                  ),
+                ),
+                onPressed:
+                    () => Navigator.of(ctx).pop(true), // Return true on confirm
+              ),
+            ],
+          ),
+    );
+
+    // 3. Check Dialog Result (and if widget still mounted)
+    if (confirm != true || !mounted) {
+      print("Deletion cancelled by user or widget unmounted.");
+      return; // Exit if user cancelled or widget gone
+    }
+
+    // 4. Proceed with Deletion if Confirmed
+    final recurringTransactionsprovider =
+        Provider.of<RecurringTransactionsProvider>(
+          currentContext,
+          listen: false,
+        ); // Use stored context
+    final bool success = await recurringTransactionsprovider
+        .deleteRecurringTransaction(recurringTransactionToDelete.id!);
+
+    // 5. Handle Final Result (check mounted again just in case)
+    if (!mounted) return;
+
+    if (success) {
+      print("Delete successful.");
+      ScaffoldMessenger.of(currentContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${recurringTransactionToDelete.description} deleted successfully.',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(currentContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to delete ${recurringTransactionToDelete.description}',
+          ),
+          backgroundColor: Theme.of(currentContext).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {});
+  }
+
+  Future<void> _fetchRecurringTransactionsData() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final accountProvider = Provider.of<AccountProvider>(
+      context,
+      listen: false,
+    );
+    final recurringTransactionsProvider =
+        Provider.of<RecurringTransactionsProvider>(context, listen: false);
+    final categoryProvider = Provider.of<CategoryProvider>(
+      context,
+      listen: false,
+    );
+
+    try {
+      if (accountProvider.accounts.isEmpty) {
+        await accountProvider.fetchAccounts();
+      }
+      if (categoryProvider.categories.isEmpty && !categoryProvider.isLoading) {
+        await categoryProvider.fetchCategories();
+      }
+      if (recurringTransactionsProvider.recurringTransactions.isEmpty) {
+        await recurringTransactionsProvider.fetchRecurringTransactions();
+      }
+    } catch (e) {
+      print("Error during initial page data load: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading page data: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false; // Stop loading
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final accountProvider = context.watch<AccountProvider>();
+    final categoryProvider = context.watch<CategoryProvider>();
+    final recurringTransactionsProvider =
+        context.watch<RecurringTransactionsProvider>();
+    final List<Category> categoryData = categoryProvider.categories;
+    final List<Account> accountData = accountProvider.accounts;
+    final List<RecurringTransaction> recurringTransactionData =
+        recurringTransactionsProvider.recurringTransactions;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Recurring Transactions')),
       drawer: const AppDrawer(),
+
+      body: ListView.builder(
+        itemCount: recurringTransactionData.length,
+        itemBuilder: (ctx, index) {
+          final item = recurringTransactionData[index];
+          return RecurringTransactionsTile(
+            recurringTransactionData: item,
+            onEdit: () {
+              _showCategoryForm(item);
+            },
+            onDelete: (RecurringTransaction rt) {
+              _onDelete(rt);
+            },
+
+            accountName:
+                accountData.firstWhere((acc) => acc.id == item.accountId).name,
+            categoryTag: categoryData.firstWhere(
+              (cat) => cat.id == item.categoryId,
+            ),
+            transferToAccountName:
+                item.transferToAccountId != null
+                    ? accountData
+                        .firstWhere((acc) => acc.id == item.transferToAccountId)
+                        .name
+                    : null,
+          );
+        },
+      ),
+
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           _showCategoryForm();

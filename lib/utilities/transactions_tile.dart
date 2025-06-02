@@ -24,8 +24,6 @@ class TransactionsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
     String amountText = "nill";
     Color amountColor = Colors.black;
     final String formattedDate = DateFormat(

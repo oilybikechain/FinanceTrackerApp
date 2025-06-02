@@ -2,6 +2,7 @@ import 'package:finance_tracker/data/accounts_class.dart';
 import 'package:finance_tracker/data/category_class.dart';
 import 'package:finance_tracker/data/enums.dart';
 import 'package:finance_tracker/data/recurring_transactions_class.dart';
+import 'package:finance_tracker/pages/recurring_transactions_page.dart';
 import 'package:finance_tracker/services/account_provider.dart';
 import 'package:finance_tracker/services/category_provider.dart';
 import 'package:finance_tracker/services/recurring_transactions_provider.dart';
@@ -31,13 +32,14 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
 
   final _amountController = TextEditingController();
 
-  double _dollarValue = 0;
-  double _centValue = 0;
-  double _maxDollarSliderValue = 100;
+  //End date
+
+  Frequency? _selectedRecurringTransactionPeriod;
 
   bool _isEditMode = false;
-  DateTime _transactionDateTime = DateTime.now();
-  TransactionType? _selectedtransactionType;
+  DateTime _startDate = DateTime.now();
+  DateTime? _endDate;
+  TransactionType _selectedtransactionType = TransactionType.income;
   int? _selectedAccountId;
   int? _selectedDestinationAccountId;
   int _selectedCategoryId = 1;
@@ -47,47 +49,142 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
   @override
   void initState() {}
 
-  Future<void> _submitForm() async {}
+  Future<void> _submitForm() async {
+    final isValid = _formkey.currentState?.validate() ?? false;
 
-  Future<void> _selectDate(BuildContext context) async {
+    if (!isValid) {
+      print("form is invalid");
+      //TODO Show message in snackbar
+      return;
+    }
+
+    String description = _transactionDescriptionController.text.trim();
+    final amount = double.tryParse(_amountController.text) ?? 0.0;
+    final transactionType = _selectedtransactionType;
+    final account = _selectedAccountId;
+    final selectedCategoryId = _selectedCategoryId;
+    final startDate = _startDate;
+    final endDate = _endDate;
+    final frequency = _selectedRecurringTransactionPeriod;
+    final nextDueDate = _startDate;
+    final transferCategoryId = 2;
+
+    final recurringTransactionsProvider =
+        Provider.of<RecurringTransactionsProvider>(context, listen: false);
+    final navigator = Navigator.of(context); // Store Navigator
+    final messenger = ScaffoldMessenger.of(context); // Store ScaffoldMessenger
+    final theme = Theme.of(context);
+
+    double finalAmount =
+        (transactionType == TransactionType.income)
+            ? amount.abs()
+            : -amount.abs();
+
+    if (description.isEmpty) {
+      description =
+          transactionType!.name[0].toUpperCase() +
+          transactionType!.name.substring(1);
+    }
+
+    bool success = false;
+
+    if (_isEditMode) {
+      //TODO
+    } else {
+      if (_selectedtransactionType == TransactionType.transfer) {
+        // --- Handle Transfer ---
+        if (_selectedDestinationAccountId == null ||
+            _selectedAccountId == _selectedDestinationAccountId) {
+          if (mounted) {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('Invalid source/destination for transfer.'),
+              ),
+            );
+          }
+          success = false;
+          return;
+        }
+        print("Creating new Recurring Transfer");
+        success = await recurringTransactionsProvider.addRecurringTransaction(
+          RecurringTransaction(
+            accountId: account!,
+            type: transactionType,
+            amount: amount,
+            frequency: frequency!,
+            startDate: startDate,
+            nextDueDate: nextDueDate,
+            categoryId: transferCategoryId,
+            description: description,
+            endDate: endDate,
+            transferToAccountId: _selectedDestinationAccountId,
+          ),
+        );
+      } else {
+        print("Creating new Transaction");
+        success = await recurringTransactionsProvider.addRecurringTransaction(
+          RecurringTransaction(
+            accountId: account!,
+            type: transactionType,
+            amount: amount,
+            frequency: frequency!,
+            startDate: startDate,
+            nextDueDate: nextDueDate,
+            categoryId: selectedCategoryId,
+            description: description,
+            endDate: endDate,
+          ),
+        );
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    if (success) {
+      print("Operation successful, popping form.");
+      navigator.pop(true);
+    } else {
+      print("Operation failed (provider returned false).");
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Operation failed.'),
+          backgroundColor: theme.colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _selectStartDate(BuildContext context) async {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: _transactionDateTime, // Pre-select current date
+      initialDate: _startDate, // Pre-select current date
       firstDate: DateTime(2000), // Earliest selectable date
       lastDate: DateTime(2101), // Latest selectable date
     );
-    if (pickedDate != null && pickedDate != _transactionDateTime) {
+    if (pickedDate != null && pickedDate != _startDate) {
       setState(() {
         // Combine picked date with existing time
-        _transactionDateTime = DateTime(
+        _startDate = DateTime(
           pickedDate.year,
           pickedDate.month,
           pickedDate.day,
-          _transactionDateTime.hour,
-          _transactionDateTime.minute,
         );
       });
     }
   }
 
-  // --- ADDED: Time Picker ---
-  Future<void> _selectTime(BuildContext context) async {
-    final TimeOfDay? pickedTime = await showTimePicker(
+  Future<void> _selectEndDate(BuildContext context) async {
+    final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(
-        _transactionDateTime,
-      ), // Pre-select current time
+      initialDate: _endDate ?? _startDate.add(const Duration(days: 1)),
+      firstDate: _startDate,
+      lastDate: DateTime(2101),
     );
-    if (pickedTime != null) {
+    if (pickedDate != null) {
       setState(() {
-        // Combine existing date with picked time
-        _transactionDateTime = DateTime(
-          _transactionDateTime.year,
-          _transactionDateTime.month,
-          _transactionDateTime.day,
-          pickedTime.hour,
-          pickedTime.minute,
-        );
+        _endDate = DateTime(pickedDate.year, pickedDate.month, pickedDate.day);
       });
     }
   }
@@ -96,52 +193,8 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
   void dispose() {
     print("Disposing TransactionsForm controllers");
     _transactionDescriptionController.dispose();
-    _amountController.removeListener(_syncSlidersFromTextField);
     _amountController.dispose();
     super.dispose();
-  }
-
-  void _updateTextFieldFromSliders() {
-    double totalAmount = _dollarValue + (_centValue / 100.0);
-    _amountController.removeListener(_syncSlidersFromTextField);
-    _amountController.text = totalAmount.toStringAsFixed(2);
-    _amountController.addListener(_syncSlidersFromTextField);
-  }
-
-  //Method to update sliders FROM text field
-  void _syncSlidersFromTextField() {
-    double? amountFromText = double.tryParse(_amountController.text);
-    if (amountFromText != null) {
-      amountFromText = amountFromText.abs();
-      double newDollarValue = amountFromText.floorToDouble();
-      double newCentValue = ((amountFromText - newDollarValue) * 100);
-
-      if (newCentValue >= 0 && newCentValue <= 99) {
-        bool changed = false;
-        if (newDollarValue > _maxDollarSliderValue) {
-          _maxDollarSliderValue = newDollarValue;
-          changed = true;
-        }
-        if (_dollarValue != newDollarValue) {
-          _dollarValue = newDollarValue;
-          changed = true;
-        }
-        if (_centValue != newCentValue) {
-          _centValue = newCentValue;
-          changed = true;
-        }
-
-        if (changed) {
-          setState(() {});
-        }
-      }
-    } else {
-      setState(() {
-        _dollarValue = 0;
-        _centValue = 0;
-        _maxDollarSliderValue = 100;
-      });
-    }
   }
 
   @override
@@ -165,7 +218,9 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
         child: ListView(
           children: [
             Text(
-              _isEditMode ? "Edit Transaction" : 'Create New Transaction',
+              _isEditMode
+                  ? "Edit Recurring Transaction"
+                  : 'Create New Recurring Transaction',
               style: textTheme.headlineSmall,
             ),
 
@@ -285,7 +340,7 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
 
               onSelectionChanged: (Set<TransactionType> newSelection) {
                 setState(() {
-                  _selectedtransactionType = newSelection.firstOrNull;
+                  _selectedtransactionType = newSelection.first;
                 });
               },
 
@@ -306,19 +361,11 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
                   }
                   return null; // Use default background color otherwise (usually transparent or theme-based)
                 }),
-
                 foregroundColor: WidgetStateProperty.resolveWith<Color?>((
                   Set<WidgetState> states,
                 ) {
                   final theme = Theme.of(context);
-                  if (states.contains(WidgetState.selected)) {
-                    if (_selectedtransactionType == TransactionType.expense) {
-                      return Colors.black;
-                    } else if (_selectedtransactionType ==
-                        TransactionType.income) {
-                      return Colors.black;
-                    }
-                  }
+
                   return theme.colorScheme.onSurface;
                 }),
               ),
@@ -328,35 +375,37 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
 
             Text("Next recurring transaction date:"),
 
+            const SizedBox(height: 20),
+
             Row(
               children: [
                 Expanded(
                   child: InkWell(
-                    onTap: () => _selectDate(context),
+                    onTap: () => _selectStartDate(context),
                     child: InputDecorator(
                       decoration: const InputDecoration(
                         labelText: 'Date',
                         border: OutlineInputBorder(),
                         suffixIcon: Icon(Icons.calendar_today),
                       ),
-                      child: Text(
-                        DateFormat('dd MMM yyyy').format(_transactionDateTime),
-                      ),
+                      child: Text(DateFormat('dd MM yyyy').format(_startDate)),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: InkWell(
-                    onTap: () => _selectTime(context),
+                    onTap: () => _selectEndDate(context),
                     child: InputDecorator(
                       decoration: const InputDecoration(
-                        labelText: 'Time',
+                        labelText: '(Optional) End Date',
                         border: OutlineInputBorder(),
-                        suffixIcon: Icon(Icons.access_time),
+                        suffixIcon: Icon(Icons.calendar_today),
                       ),
                       child: Text(
-                        DateFormat('hh:mm a').format(_transactionDateTime),
+                        _endDate != null
+                            ? DateFormat('dd MM yyyy').format(_endDate!)
+                            : '',
                       ),
                     ),
                   ),
@@ -366,19 +415,37 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
 
             const SizedBox(height: 20),
 
-            TextFormField(
-              controller: _transactionDescriptionController,
-
-              decoration: InputDecoration(
-                labelText: 'Transaction Name',
-                hintText: 'E.g. Food, Transport, will default to Category name',
+            DropdownButtonFormField<Frequency>(
+              value:
+                  _selectedRecurringTransactionPeriod, // Current selected value from state
+              decoration: const InputDecoration(
+                labelText: 'Transaction frequency', // Label for the dropdown
                 border: OutlineInputBorder(),
               ),
-
-              textInputAction: TextInputAction.next,
-
+              // Create dropdown items from the Frequency enum values
+              items:
+                  Frequency.values.map((frequency) {
+                    return DropdownMenuItem(
+                      value: frequency, // The enum value itself
+                      // Display user-friendly text (e.g., capitalize 'daily' to 'Daily')
+                      child: Text(
+                        frequency.name[0].toUpperCase() +
+                            frequency.name.substring(1),
+                      ),
+                    );
+                  }).toList(),
+              // Update the state variable when a new item is selected
+              onChanged: (Frequency? newValue) {
+                setState(() {
+                  _selectedRecurringTransactionPeriod = newValue;
+                });
+              },
+              // Make selection required ONLY if the rate is > 0 (i.e., if dropdown is visible)
               validator: (value) {
-                return null;
+                if (value == null) {
+                  return 'Please select a recurring transaction frequency period.';
+                }
+                return null; // Valid
               },
             ),
 
@@ -388,8 +455,8 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
               controller: _transactionDescriptionController,
 
               decoration: InputDecoration(
-                labelText: 'Transaction Name',
-                hintText: 'E.g. Food, Transport, will default to Category name',
+                labelText: 'Recurring Transaction Name',
+                hintText: 'E.g. Salary, phone plan',
                 border: OutlineInputBorder(),
               ),
 
@@ -428,40 +495,6 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
                   return 'Amount must be positive.';
                 }
                 return null; // Valid
-              },
-            ),
-
-            Text('Dollars: ${_dollarValue.toInt()}'),
-            Slider(
-              value: _dollarValue,
-              min: 0,
-              max: _maxDollarSliderValue,
-              divisions: _maxDollarSliderValue.toInt(),
-              label: _dollarValue.round().toString(),
-              onChanged: (newValue) {
-                setState(() {
-                  _dollarValue = newValue.floorToDouble();
-                });
-                _updateTextFieldFromSliders();
-              },
-            ),
-
-            const SizedBox(height: 8),
-
-            Text('Cents: ${_centValue.toInt()}'),
-
-            Slider(
-              value: _centValue,
-              min: 0,
-              max: 99,
-              divisions: 99,
-              label: _centValue.round().toString(),
-              onChanged: (newValue) {
-                setState(() {
-                  _centValue = newValue.roundToDouble();
-                });
-
-                _updateTextFieldFromSliders();
               },
             ),
 

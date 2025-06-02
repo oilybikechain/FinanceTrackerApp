@@ -3,7 +3,7 @@ import 'enums.dart'; // Your enums
 class RecurringTransaction {
   final int? id;
   final int accountId;
-  final RecurringTransactionType type;
+  final TransactionType type;
   final double amount;
   final String? description;
   final Frequency frequency;
@@ -54,8 +54,8 @@ class RecurringTransaction {
       id: map['id'] as int?,
       accountId: map['account_id'] as int,
       type:
-          RecurringTransactionType.values.fromName(map['type'] as String?) ??
-          RecurringTransactionType.expense,
+          TransactionType.values.fromName(map['type'] as String?) ??
+          TransactionType.expense,
       amount: map['amount'] as double,
       description: map['description'] as String?,
       frequency:
@@ -77,7 +77,7 @@ class RecurringTransaction {
   RecurringTransaction copyWith({
     int? id,
     int? accountId,
-    RecurringTransactionType? type,
+    TransactionType? type,
     double? amount,
     String? description,
     bool setDescriptionNull = false,

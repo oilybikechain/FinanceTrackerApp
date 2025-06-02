@@ -483,14 +483,7 @@ class _TransactionsFormState extends State<TransactionsForm> {
                   Set<WidgetState> states,
                 ) {
                   final theme = Theme.of(context);
-                  if (states.contains(WidgetState.selected)) {
-                    if (_selectedtransactionType == TransactionType.expense) {
-                      return Colors.black;
-                    } else if (_selectedtransactionType ==
-                        TransactionType.income) {
-                      return Colors.black;
-                    }
-                  }
+
                   return theme.colorScheme.onSurface;
                 }),
               ),

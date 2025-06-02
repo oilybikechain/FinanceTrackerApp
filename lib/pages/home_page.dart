@@ -81,6 +81,7 @@ class _HomePageState extends State<HomePage> {
   bool _showCharts = false;
   bool _toggleToPieChart = false;
   final SettingsService _settingsService = SettingsService();
+  bool _isInit = true;
 
   @override
   void initState() {
@@ -91,6 +92,17 @@ class _HomePageState extends State<HomePage> {
       _fetchPeriodEndBalance();
     });
   }
+
+  // @override
+  // void didChangeDependencies() {
+  //   super.didChangeDependencies();
+  //   if (_isInit) {
+  //     _loadPreferences();
+  //     _fetchHomePageData();
+  //     _fetchPeriodEndBalance();
+  //   }
+  //   _isInit = false;
+  // }
 
   Future<void> _loadPreferences() async {
     if (!mounted) return;
@@ -253,47 +265,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Future<void> _fetchAccountsForDropdown() async {
-  //   if (!mounted) return;
-  //   setState(() {
-  //     _isLoadingAccounts = true;
-  //   });
-  //   try {
-  //     final accountProvider = Provider.of<AccountProvider>(
-  //       context,
-  //       listen: false,
-  //     );
-  //     if (accountProvider.accounts.isEmpty) {
-  //       await accountProvider.fetchAccounts();
-  //     }
-  //     _accountsForDropdown = [
-  //       Account(
-  //         id: _allAccountsId,
-  //         name: 'All',
-  //         initialBalance: 0,
-  //         createdAt: DateTime.now(),
-  //       ),
-  //       ...accountProvider.accounts,
-  //     ];
-  //     if (_selectedAccountId == _allAccountsId &&
-  //         _accountsForDropdown.length > 1 &&
-  //         _accountsForDropdown.first.id != _allAccountsId) {
-  //     } else if (_accountsForDropdown.isNotEmpty &&
-  //         _selectedAccountId == null) {
-  //       _selectedAccountId = _accountsForDropdown.first.id;
-  //     }
-  //   } catch (e) {
-  //     print("Error fetching accounts for dropdown: $e");
-  //     // Handle error appropriately
-  //   } finally {
-  //     if (mounted) {
-  //       setState(() {
-  //         _isLoadingAccounts = false;
-  //       });
-  //     }
-  //   }
-  // }
-
   Future<void> _fetchTransactions() async {
     if (!mounted) return;
     final transactionsProvider = Provider.of<TransactionsProvider>(
@@ -451,7 +422,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final transactionsProvider = Provider.of<TransactionsProvider>(context);
+    final transactionsProvider = context.watch<TransactionsProvider>();
     final accountProvider = context.watch<AccountProvider>();
     final List<ChartDataPoint> chartPoints = transactionsProvider.chartData;
     final double maxYValueForChart = transactionsProvider.maxChartYValue;

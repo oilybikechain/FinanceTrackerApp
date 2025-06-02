@@ -300,7 +300,7 @@ class RecurringTransactionsProvider with ChangeNotifier {
 
     final interestRule = RecurringTransaction(
       accountId: account.id!,
-      type: RecurringTransactionType.income, // Interest is income
+      type: TransactionType.income, // Interest is income
       // Store the ANNUAL rate in the amount field for this system rule.
       // The processing logic will divide it by frequency.
       amount: account.interestRate,
