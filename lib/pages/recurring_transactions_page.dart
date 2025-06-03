@@ -1,5 +1,7 @@
+import 'package:collection/collection.dart';
 import 'package:finance_tracker/data/accounts_class.dart';
 import 'package:finance_tracker/data/category_class.dart';
+import 'package:finance_tracker/data/recurringTransactionsListItem.dart';
 import 'package:finance_tracker/data/recurring_transactions_class.dart';
 import 'package:finance_tracker/services/account_provider.dart';
 import 'package:finance_tracker/services/category_provider.dart';
@@ -22,7 +24,9 @@ class _RecurringTransactionsPageState extends State<RecurringTransactionsPage> {
   bool _isInit = true;
   bool _isLoading = false;
 
-  void _showCategoryForm([RecurringTransaction? recurringTransactionToEdit]) {
+  void _showRecurringTransactionsForm([
+    RecurringTransaction? recurringTransactionToEdit,
+  ]) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -195,6 +199,97 @@ class _RecurringTransactionsPageState extends State<RecurringTransactionsPage> {
     }
   }
 
+  List<RecurringTransactionsListItem> _buildDisplayList(
+    List<RecurringTransaction> allRules,
+    List<Account> allAccounts,
+    List<Category> allCategories,
+  ) {
+    List<RecurringTransactionsListItem> items = [];
+
+    // Separate rules
+    final interestRules =
+        allRules
+            .where((rule) => rule.isInterestRule && rule.isSystemGenerated)
+            .toList();
+    final customRules =
+        allRules
+            .where((rule) => !rule.isInterestRule && !rule.isSystemGenerated)
+            .toList();
+
+    // Sort them (optional, e.g., by next due date or description)
+    interestRules.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+    customRules.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+
+    // Add Interest section
+    if (interestRules.isNotEmpty) {
+      items.add(SeparatorItem("Interest Rules (System)"));
+      for (var rule in interestRules) {
+        final account = allAccounts.firstWhereOrNull(
+          (acc) => acc.id == rule.accountId,
+        );
+        final category = allCategories.firstWhereOrNull(
+          (cat) => cat.id == rule.categoryId,
+        );
+        final transferToAccount =
+            rule.transferToAccountId != null
+                ? allAccounts.firstWhereOrNull(
+                  (acc) => acc.id == rule.transferToAccountId,
+                )
+                : null;
+
+        items.add(
+          RecurringTransactionItem(
+            recurringTransactionData: rule,
+            accountName: account?.name ?? 'Unknown Account',
+            categoryForDisplay:
+                category ??
+                Category(
+                  id: rule.categoryId,
+                  name: 'Unknown Category',
+                  colorValue: Colors.grey.value,
+                ), // Fallback
+            transferToAccountName: transferToAccount?.name,
+          ),
+        );
+      }
+    }
+
+    // Add Custom section
+    if (customRules.isNotEmpty) {
+      items.add(SeparatorItem("Custom Recurring Rules"));
+      for (var rule in customRules) {
+        final account = allAccounts.firstWhereOrNull(
+          (acc) => acc.id == rule.accountId,
+        );
+        final category = allCategories.firstWhereOrNull(
+          (cat) => cat.id == rule.categoryId,
+        );
+        final transferToAccount =
+            rule.transferToAccountId != null
+                ? allAccounts.firstWhereOrNull(
+                  (acc) => acc.id == rule.transferToAccountId,
+                )
+                : null;
+
+        items.add(
+          RecurringTransactionItem(
+            recurringTransactionData: rule,
+            accountName: account?.name ?? 'Unknown Account',
+            categoryForDisplay:
+                category ??
+                Category(
+                  id: rule.categoryId,
+                  name: 'Cat. ID: ${rule.categoryId}',
+                  colorValue: Colors.grey.value,
+                ),
+            transferToAccountName: transferToAccount?.name,
+          ),
+        );
+      }
+    }
+    return items;
+  }
+
   @override
   Widget build(BuildContext context) {
     final accountProvider = context.watch<AccountProvider>();
@@ -205,42 +300,73 @@ class _RecurringTransactionsPageState extends State<RecurringTransactionsPage> {
     final List<Account> accountData = accountProvider.accounts;
     final List<RecurringTransaction> recurringTransactionData =
         recurringTransactionsProvider.recurringTransactions;
+    final List<RecurringTransactionsListItem> displayItems = _buildDisplayList(
+      recurringTransactionData,
+      accountProvider.accounts,
+      categoryProvider.categories,
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Recurring Transactions')),
       drawer: const AppDrawer(),
 
-      body: ListView.builder(
-        itemCount: recurringTransactionData.length,
-        itemBuilder: (ctx, index) {
-          final item = recurringTransactionData[index];
-          return RecurringTransactionsTile(
-            recurringTransactionData: item,
-            onEdit: () {
-              _showCategoryForm(item);
-            },
-            onDelete: (RecurringTransaction rt) {
-              _onDelete(rt);
-            },
+      body:
+          displayItems.isEmpty
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('No recurring transactions set up.'),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () => _showRecurringTransactionsForm(),
+                      child: const Text('Add First Recurring Transaction'),
+                    ),
+                  ],
+                ),
+              )
+              : ListView.builder(
+                itemCount: displayItems.length,
+                itemBuilder: (ctx, index) {
+                  final item = displayItems[index];
 
-            accountName:
-                accountData.firstWhere((acc) => acc.id == item.accountId).name,
-            categoryTag: categoryData.firstWhere(
-              (cat) => cat.id == item.categoryId,
-            ),
-            transferToAccountName:
-                item.transferToAccountId != null
-                    ? accountData
-                        .firstWhere((acc) => acc.id == item.transferToAccountId)
-                        .name
-                    : null,
-          );
-        },
-      ),
+                  if (item is SeparatorItem) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 12.0,
+                      ),
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        item.separatorName,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  } else if (item is RecurringTransactionItem) {
+                    return RecurringTransactionsTile(
+                      key: ValueKey(item.recurringTransactionData.id),
+                      recurringTransactionData: item.recurringTransactionData,
+                      accountName: item.accountName,
+                      categoryTag: item.categoryForDisplay,
+                      transferToAccountName: item.transferToAccountName,
+                      onEdit: () {
+                        _showRecurringTransactionsForm(
+                          item.recurringTransactionData,
+                        );
+                      },
+                      onDelete: (RecurringTransaction rt) {
+                        _onDelete(rt);
+                      },
+                    );
+                  }
+                },
+              ),
 
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          _showCategoryForm();
+          _showRecurringTransactionsForm();
         },
         tooltip: 'Add Account',
         child: const Icon(Icons.add),

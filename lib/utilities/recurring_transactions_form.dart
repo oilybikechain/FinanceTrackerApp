@@ -37,9 +37,9 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
   Frequency? _selectedRecurringTransactionPeriod;
 
   bool _isEditMode = false;
-  DateTime _startDate = DateTime.now();
+  DateTime _nextDueDate = DateTime.now();
   DateTime? _endDate;
-  TransactionType _selectedtransactionType = TransactionType.income;
+  TransactionType _selectedtransactionType = TransactionType.expense;
   int? _selectedAccountId;
   int? _selectedDestinationAccountId;
   int _selectedCategoryId = 1;
@@ -47,14 +47,79 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
 
   //TODO
   @override
-  void initState() {}
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeFormData();
+    });
+  }
+
+  Future<void> _initializeFormData() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingDefaults = true;
+    });
+
+    final accountProvider = Provider.of<AccountProvider>(
+      context,
+      listen: false,
+    );
+    final categoryProvider = Provider.of<CategoryProvider>(
+      context,
+      listen: false,
+    );
+
+    if (widget.existingRecurringTransaction != null) {
+      _isEditMode = true;
+      final rule = widget.existingRecurringTransaction!;
+
+      _transactionDescriptionController.text = rule.description ?? '';
+      _amountController.text = rule.amount.abs().toStringAsFixed(2);
+      _selectedtransactionType = rule.type;
+
+      if (rule.type == TransactionType.transfer) {
+        _selectedDestinationAccountId = rule.transferToAccountId;
+      }
+
+      _selectedAccountId = rule.accountId;
+      _selectedCategoryId = rule.categoryId;
+      _nextDueDate = rule.nextDueDate.toLocal();
+      _endDate = rule.endDate?.toLocal();
+      _selectedRecurringTransactionPeriod = rule.frequency;
+    } else {
+      _isEditMode = false;
+
+      _selectedtransactionType = TransactionType.expense;
+      _selectedRecurringTransactionPeriod = Frequency.daily;
+      _nextDueDate = DateTime.now();
+      _endDate = null;
+
+      if (accountProvider.accounts.isNotEmpty) {
+        _selectedAccountId = accountProvider.accounts.first.id;
+      } else {
+        _selectedAccountId = null;
+      }
+
+      _selectedCategoryId = 1;
+      _selectedDestinationAccountId = null; // No destination by default
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoadingDefaults = false;
+      });
+    }
+  }
 
   Future<void> _submitForm() async {
     final isValid = _formkey.currentState?.validate() ?? false;
+    final navigator = Navigator.of(context); // Store Navigator
+    final messenger = ScaffoldMessenger.of(context); // Store ScaffoldMessenger
+    final theme = Theme.of(context);
 
     if (!isValid) {
       print("form is invalid");
-      //TODO Show message in snackbar
+      messenger.showSnackBar(const SnackBar(content: Text('Invalid form.')));
       return;
     }
 
@@ -63,17 +128,14 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
     final transactionType = _selectedtransactionType;
     final account = _selectedAccountId;
     final selectedCategoryId = _selectedCategoryId;
-    final startDate = _startDate;
+    final startDate = _nextDueDate;
     final endDate = _endDate;
     final frequency = _selectedRecurringTransactionPeriod;
-    final nextDueDate = _startDate;
+    final nextDueDate = _nextDueDate;
     final transferCategoryId = 2;
 
     final recurringTransactionsProvider =
         Provider.of<RecurringTransactionsProvider>(context, listen: false);
-    final navigator = Navigator.of(context); // Store Navigator
-    final messenger = ScaffoldMessenger.of(context); // Store ScaffoldMessenger
-    final theme = Theme.of(context);
 
     double finalAmount =
         (transactionType == TransactionType.income)
@@ -89,10 +151,56 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
     bool success = false;
 
     if (_isEditMode) {
-      //TODO
+      if (_selectedtransactionType == TransactionType.transfer) {
+        if (_selectedDestinationAccountId == null ||
+            _selectedAccountId == _selectedDestinationAccountId) {
+          if (mounted) {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('Invalid source/destination for transfer.'),
+              ),
+            );
+          }
+          success = false;
+          return;
+        }
+        print("Creating new Recurring Transfer");
+        success = await recurringTransactionsProvider
+            .updateRecurringTransaction(
+              RecurringTransaction(
+                id: widget.existingRecurringTransaction!.id,
+                accountId: account!,
+                type: transactionType!,
+                amount: amount,
+                frequency: frequency!,
+                startDate: widget.existingRecurringTransaction!.startDate,
+                nextDueDate: nextDueDate,
+                categoryId: transferCategoryId,
+                description: description,
+                endDate: endDate,
+                transferToAccountId: _selectedDestinationAccountId,
+              ),
+            );
+      } else {
+        print("Creating new Transaction");
+        success = await recurringTransactionsProvider
+            .updateRecurringTransaction(
+              RecurringTransaction(
+                id: widget.existingRecurringTransaction!.id,
+                accountId: account!,
+                type: transactionType!,
+                amount: amount,
+                frequency: frequency!,
+                startDate: widget.existingRecurringTransaction!.startDate,
+                nextDueDate: nextDueDate,
+                categoryId: selectedCategoryId,
+                description: description,
+                endDate: endDate,
+              ),
+            );
+      }
     } else {
       if (_selectedtransactionType == TransactionType.transfer) {
-        // --- Handle Transfer ---
         if (_selectedDestinationAccountId == null ||
             _selectedAccountId == _selectedDestinationAccountId) {
           if (mounted) {
@@ -109,7 +217,7 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
         success = await recurringTransactionsProvider.addRecurringTransaction(
           RecurringTransaction(
             accountId: account!,
-            type: transactionType,
+            type: transactionType!,
             amount: amount,
             frequency: frequency!,
             startDate: startDate,
@@ -125,7 +233,7 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
         success = await recurringTransactionsProvider.addRecurringTransaction(
           RecurringTransaction(
             accountId: account!,
-            type: transactionType,
+            type: transactionType!,
             amount: amount,
             frequency: frequency!,
             startDate: startDate,
@@ -156,17 +264,17 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
     }
   }
 
-  Future<void> _selectStartDate(BuildContext context) async {
+  Future<void> _selectNextDate(BuildContext context) async {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: _startDate, // Pre-select current date
+      initialDate: _nextDueDate, // Pre-select current date
       firstDate: DateTime(2000), // Earliest selectable date
       lastDate: DateTime(2101), // Latest selectable date
     );
-    if (pickedDate != null && pickedDate != _startDate) {
+    if (pickedDate != null && pickedDate != _nextDueDate) {
       setState(() {
         // Combine picked date with existing time
-        _startDate = DateTime(
+        _nextDueDate = DateTime(
           pickedDate.year,
           pickedDate.month,
           pickedDate.day,
@@ -178,8 +286,8 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
   Future<void> _selectEndDate(BuildContext context) async {
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: _endDate ?? _startDate.add(const Duration(days: 1)),
-      firstDate: _startDate,
+      initialDate: _endDate ?? _nextDueDate.add(const Duration(days: 1)),
+      firstDate: _nextDueDate,
       lastDate: DateTime(2101),
     );
     if (pickedDate != null) {
@@ -381,14 +489,16 @@ class _RecurringTransactionsFormState extends State<RecurringTransactionsForm> {
               children: [
                 Expanded(
                   child: InkWell(
-                    onTap: () => _selectStartDate(context),
+                    onTap: () => _selectNextDate(context),
                     child: InputDecorator(
                       decoration: const InputDecoration(
                         labelText: 'Date',
                         border: OutlineInputBorder(),
                         suffixIcon: Icon(Icons.calendar_today),
                       ),
-                      child: Text(DateFormat('dd MM yyyy').format(_startDate)),
+                      child: Text(
+                        DateFormat('dd MM yyyy').format(_nextDueDate),
+                      ),
                     ),
                   ),
                 ),

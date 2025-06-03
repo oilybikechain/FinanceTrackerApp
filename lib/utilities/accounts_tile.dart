@@ -18,61 +18,42 @@ class AccountsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme =
-        Theme.of(context).textTheme;
-    final colorScheme =
-        Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    String subtitleText =
-        'Balance: \$${currentBalance.toStringAsFixed(2)}';
+    String subtitleText = 'Balance: \$${currentBalance.toStringAsFixed(2)}';
     if (accountData.interestRate > 0.0 && accountData.interestPeriod != null) {
       subtitleText +=
           '\nInterest: ${accountData.interestRate.toStringAsFixed(1)}%';
-      subtitleText += '\nInterest Credited: ${accountData.interestPeriod![0].toUpperCase() + accountData.interestPeriod!.substring(1)}';
+      subtitleText +=
+          '\nInterest Credited: ${accountData.interestPeriod!.name[0].toUpperCase() + accountData.interestPeriod!.name.substring(1)}';
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12.0,
-        vertical: 6.0,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
       child: Card(
         elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         child: ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(
-                vertical: 8.0,
-                horizontal: 16.0,
-              ),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 8.0,
+            horizontal: 16.0,
+          ),
           title: Text(
             accountData.name,
-            style: textTheme.titleMedium
-                ?.copyWith(
-                  fontWeight:
-                      FontWeight.w600,
-                ),
+            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
           subtitle: Column(
             // Use a Column in the subtitle to stack info
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            mainAxisSize:
-                MainAxisSize
-                    .min, // Keep column height minimal
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, // Keep column height minimal
             children: [
               // Display balance and interest info
               Text(
                 subtitleText,
-                style: textTheme.bodyMedium
-                    ?.copyWith(
-                      color: colorScheme
-                          .onSurface
-                          .withAlpha(200),
-                    ),
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface.withAlpha(200),
+                ),
               ),
             ],
           ),
@@ -84,9 +65,7 @@ class AccountsTile extends StatelessWidget {
                   icon: Icon(
                     Icons.edit,
                     size: 20,
-                    color:
-                        colorScheme
-                            .secondary,
+                    color: colorScheme.secondary,
                   ),
                   tooltip: 'Edit Account',
                   onPressed: onEdit,

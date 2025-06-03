@@ -107,14 +107,15 @@ class AccountProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> addAccount(Account account) async {
+  Future<int> addAccount(Account account) async {
     try {
       int id = await _dbService.insertAccount(account);
       await fetchAccounts();
-      return true;
+
+      return id;
     } catch (e) {
       print("Error adding account: $e");
-      return false;
+      return 0;
     }
   }
 

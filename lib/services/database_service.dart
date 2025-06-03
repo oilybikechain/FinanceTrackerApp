@@ -33,6 +33,10 @@ class DatabaseService {
       version: 1,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      onConfigure: (Database db) async {
+        await db.execute('PRAGMA foreign_keys = ON;');
+        print("Foreign keys ENABLED.");
+      },
     );
   }
 
@@ -90,7 +94,7 @@ class DatabaseService {
         is_interest_rule INTEGER NOT NULL DEFAULT 0,
         is_system_generated INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
-        FOREIGN KEY (transfer_to_account_id) REFERENCES accounts(id) ON DELETE SET NULL,
+        FOREIGN KEY (transfer_to_account_id) REFERENCES accounts(id) ON DELETE CASCADE,
         FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT 
     );
   ''');

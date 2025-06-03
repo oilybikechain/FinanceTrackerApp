@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:finance_tracker/data/accounts_class.dart';
 import 'package:finance_tracker/data/enums.dart';
 import 'package:flutter/material.dart';
@@ -269,56 +270,6 @@ class RecurringTransactionsProvider with ChangeNotifier {
     return transactionsWereProcessed; // Return true if any DB write occurred
   }
 
-  Future<bool> addInterestRecurringRuleForAccount(Account account) async {
-    if (account.id == null ||
-        account.interestRate <= 0 ||
-        account.interestPeriod == null) {
-      print(
-        "Cannot create interest rule: Account ID null, rate <= 0, or period null.",
-      );
-      return false;
-    }
-
-    Frequency interestFrequency;
-    switch (account.interestPeriod?.toLowerCase()) {
-      case 'daily':
-        interestFrequency = Frequency.daily;
-        break;
-      case 'monthly':
-        interestFrequency = Frequency.monthly;
-        break;
-      case 'yearly':
-        interestFrequency = Frequency.yearly;
-        break;
-      default:
-        print("Invalid interest period: ${account.interestPeriod}");
-        return false;
-    }
-
-    DateTime startDate = account.createdAt.toLocal();
-    DateTime nextDueDate = _calculateNextDueDate(startDate, interestFrequency);
-
-    final interestRule = RecurringTransaction(
-      accountId: account.id!,
-      type: TransactionType.income, // Interest is income
-      // Store the ANNUAL rate in the amount field for this system rule.
-      // The processing logic will divide it by frequency.
-      amount: account.interestRate,
-      description: "Interest for ${account.name}",
-      frequency: interestFrequency,
-      startDate: startDate,
-      nextDueDate:
-          nextDueDate, // First interest payment will be after one period
-      categoryId: 3, // Specific category for interest
-      isInterestRule: true, // Mark as an interest rule
-      isSystemGenerated: true, // Mark as system-generated
-    );
-
-    return await addRecurringTransaction(
-      interestRule,
-    ); // Use existing add method
-  }
-
   Future<bool> processDueInterestTransactions(DateTime currentDate) async {
     _setLoading(true); // Indicate processing
     // It's often good to fetch fresh rules, especially if other processes might change them.
@@ -482,7 +433,7 @@ class RecurringTransactionsProvider with ChangeNotifier {
 
             // --- CRITICAL TODO: Update account's last_interest_credit_date ---
             // This needs a new method in DatabaseService and to be called here or after loop.
-            // Example: await _dbService.updateAccountLastInterestCreditDate(rule.accountId, nextDue);
+            // Example: await _dbService.updateAccountnextInterestCreditDate(rule.accountId, nextDue);
             // For now, this is a manual step you'd need to add. If not done, interest
             // might be calculated repeatedly for the same period if the rule's nextDueDate
             // isn't advanced past the last credit event.
@@ -544,6 +495,68 @@ class RecurringTransactionsProvider with ChangeNotifier {
 
     _setLoading(false);
     return anyInterestTransactionCreated; // Return true if any new interest transaction was actually CREATED
+  }
+
+  Future<RecurringTransaction?> _findExistingInterestRule(int accountId) async {
+    await fetchRecurringTransactions();
+    return _recurringTransactions.firstWhereOrNull(
+      (rule) => rule.accountId == accountId && rule.isInterestRule == true,
+    );
+  }
+
+  Future<bool> setupOrUpdateInterestRecurringRule(Account account) async {
+    if (_recurringTransactions.isEmpty && !_isLoading) {
+      await fetchRecurringTransactions();
+    }
+
+    final existingRule = await _findExistingInterestRule(account.id!);
+
+    // Case 1: Account has interest, and a rule needs to be created or updated
+    if (account.interestRate > 0 && account.interestPeriod != null) {
+      Frequency interestFrequency = account.interestPeriod!;
+
+      DateTime ruleStartDate = account.createdAt.toLocal();
+      DateTime nextDueDate = account.nextInterestCreditDate!;
+
+      if (existingRule != null) {
+        print("Updating existing interest rule for account ${account.id}");
+        final updatedRule = existingRule.copyWith(
+          amount: account.interestRate,
+          frequency: interestFrequency,
+          description: "Interest for ${account.name}",
+          startDate: ruleStartDate,
+          nextDueDate: nextDueDate,
+          // categoryId will be INTEREST_CATEGORY_ID, isInterestRule=true, isSystemGenerated=true
+        );
+        return await updateRecurringTransaction(updatedRule);
+      } else {
+        // --- Create new interest rule ---
+        print("Creating new interest rule for account ${account.id}");
+        final newInterestRule = RecurringTransaction(
+          accountId: account.id!,
+          type:
+              TransactionType
+                  .income, // Interest is effectively income for the rule template
+          amount: account.interestRate, // Store annual rate
+          description: "Interest for ${account.name}",
+          frequency: interestFrequency,
+          startDate: ruleStartDate,
+          nextDueDate: nextDueDate,
+          categoryId: 3,
+          isInterestRule: true,
+          isSystemGenerated: true, // System manages this rule
+        );
+        return await addRecurringTransaction(newInterestRule);
+      }
+    } else {
+      if (existingRule != null) {
+        print(
+          "Account ${account.id} no longer has interest. Deleting existing interest rule ID ${existingRule.id}.",
+        );
+        return await deleteRecurringTransaction(existingRule.id!);
+      }
+      return true;
+    }
   }
 
   // --- Private Helper Methods ---

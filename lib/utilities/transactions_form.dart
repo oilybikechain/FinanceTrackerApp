@@ -157,10 +157,16 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
   Future<void> _submitForm() async {
     final isValid = _formkey.currentState?.validate() ?? false;
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
 
     if (!isValid) {
       print("form is invalid");
-      //TODO Show message in snackbar
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Invalid source/destination for transfer.'),
+        ),
+      );
       return;
     }
 
@@ -176,8 +182,6 @@ class _TransactionsFormState extends State<TransactionsForm> {
       context,
       listen: false,
     );
-    final navigator = Navigator.of(context); // Store Navigator
-    final messenger = ScaffoldMessenger.of(context); // Store ScaffoldMessenger
     final theme = Theme.of(context);
     double finalAmount =
         (transactionType == TransactionType.income)

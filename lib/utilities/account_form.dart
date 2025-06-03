@@ -25,6 +25,7 @@ class _AccountFormState extends State<AccountForm> {
   final _nameController = TextEditingController();
   final _initialBalanceController = TextEditingController();
   final _interestRateController = TextEditingController();
+  DateTime? _nextInterestDue = DateTime.now();
 
   //Other Variables
   bool _isEditMode = false;
@@ -32,6 +33,24 @@ class _AccountFormState extends State<AccountForm> {
 
   // Enum for selected frequency
   Frequency? _selectedInterestPeriod;
+
+  Future<void> _selectNextInterestDueDate(BuildContext context) async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2101),
+    );
+    if (pickedDate != null) {
+      setState(() {
+        _nextInterestDue = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+        );
+      });
+    }
+  }
 
   // init state method: What happens when it detects an initial account
   @override
@@ -56,25 +75,27 @@ class _AccountFormState extends State<AccountForm> {
       }
 
       if (account.interestPeriod != null) {
-        _selectedInterestPeriod = Frequency.values.fromName(
-          account.interestPeriod,
-        );
+        _selectedInterestPeriod = account.interestPeriod;
       }
 
       _createdAt = account.createdAt;
+
+      _nextInterestDue = account.nextInterestCreditDate;
     }
   }
 
   //Method to save
   Future<void> _submitForm() async {
+    final navigator = Navigator.of(context); // Store Navigator
+    final messenger = ScaffoldMessenger.of(context);
     print("Save button pressed!");
     //Check if form is valid
     final isValid = _formkey.currentState?.validate() ?? false;
 
     if (!isValid) {
       print("form is invalid");
+      messenger.showSnackBar(const SnackBar(content: Text('Invalid form.')));
       return;
-      //TODO pop up for invalid form
     }
 
     print("Form is valid, proceeding to save...");
@@ -84,9 +105,13 @@ class _AccountFormState extends State<AccountForm> {
     final initialBalance =
         double.tryParse(_initialBalanceController.text) ?? 0.0;
     final interestRate = double.tryParse(_interestRateController.text) ?? 0.0;
-    final String? interestPeriodString =
+    final Frequency? interestPeriodInput =
         (interestRate > 0 && _selectedInterestPeriod != null)
-            ? _selectedInterestPeriod!.name
+            ? _selectedInterestPeriod!
+            : null;
+    final DateTime? nextInterestDueInput =
+        (interestRate > 0 && _nextInterestDue != null)
+            ? _nextInterestDue!
             : null;
 
     // 4. Store context-dependent objects BEFORE await
@@ -95,26 +120,32 @@ class _AccountFormState extends State<AccountForm> {
       context,
       listen: false,
     );
-    final navigator = Navigator.of(context); // Store Navigator
-    final messenger = ScaffoldMessenger.of(context); // Store ScaffoldMessenger
+    final recurringTransactionsProvider =
+        Provider.of<RecurringTransactionsProvider>(context, listen: false);
+
     final theme = Theme.of(context); // Store Theme
 
     // Variable to hold the result from the provider call
     bool success = false;
+    Account? savedOrUpdatedAccount;
+    int accountId;
 
     // 5. Call the appropriate provider method (NO outer try-catch here)
     if (_isEditMode) {
       print("Updating account ID: ${widget.existingAccount!.id}");
       final updatedAccount = widget.existingAccount!.copyWith(
         name: name,
-        // Don't update initialBalance or createdAt in edit mode usually
         interestRate: interestRate,
-        interestPeriod: interestPeriodString,
+        interestPeriod: interestPeriodInput,
         setInterestPeriodNull:
             interestRate <= 0 || _selectedInterestPeriod == null,
+        nextInterestCreditDate: nextInterestDueInput,
       );
       // Await the result directly from the provider
       success = await accountProvider.updateAccount(updatedAccount);
+      if (success) {
+        savedOrUpdatedAccount = updatedAccount;
+      }
     } else {
       print("Creating new account");
       final newAccount = Account(
@@ -122,10 +153,34 @@ class _AccountFormState extends State<AccountForm> {
         initialBalance: initialBalance,
         createdAt: _createdAt,
         interestRate: interestRate,
-        interestPeriod: interestPeriodString,
+        interestPeriod: interestPeriodInput,
+        nextInterestCreditDate: nextInterestDueInput,
       );
       // Await the result directly from the provider
-      success = await accountProvider.addAccount(newAccount);
+      accountId = await accountProvider.addAccount(newAccount);
+      if (accountId != 0) {
+        success = true;
+      }
+      if (success) {
+        savedOrUpdatedAccount = newAccount.copyWith(id: accountId);
+      }
+    }
+
+    if (success) {
+      print(
+        "Account operation successful. Setting up/updating interest rule...",
+      );
+      bool interestRuleSuccess = await recurringTransactionsProvider
+          .setupOrUpdateInterestRecurringRule(savedOrUpdatedAccount!);
+      if (!interestRuleSuccess) {
+        print("Warning: Failed to setup/update interest recurring rule.");
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Failed to setup/update interest recurring rule.'),
+          ),
+        );
+        return;
+      }
     }
 
     if (!mounted) {
@@ -304,6 +359,25 @@ class _AccountFormState extends State<AccountForm> {
                   }
                   return null; // Valid
                 },
+              ),
+
+            if (showInterestPeriod) const SizedBox(height: 20),
+
+            if (showInterestPeriod)
+              InkWell(
+                onTap: () => _selectNextInterestDueDate(context),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Next Interest Due Date',
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.calendar_today),
+                  ),
+                  child: Text(
+                    _nextInterestDue != null
+                        ? DateFormat('dd MM yyyy').format(_nextInterestDue!)
+                        : '',
+                  ),
+                ),
               ),
 
             if (showInterestPeriod) const SizedBox(height: 24),
