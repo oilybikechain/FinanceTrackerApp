@@ -117,14 +117,12 @@ class RecurringTransactionsProvider with ChangeNotifier {
 
   Future<bool> processDueRecurringTransactions(DateTime currentDate) async {
     _setLoading(true);
-    // No need to notify for loading start here if the caller (HomePage) manages overall page loading.
-    // If this method could be called independently and UI should react to its specific loading, then notify.
+    await fetchRecurringTransactions(); // Get the latest set of rules
 
-    await fetchRecurringTransactions(); // Fetch fresh rules
+    bool transactionsWereProcessedThisRun = false;
+    List<RecurringTransaction> rulesToUpdateInDb = [];
 
-    bool transactionsWereProcessed = false; // Track if any DB change happened
-    List<RecurringTransaction> rulesToUpdate = [];
-
+    // Normalize currentDate to the beginning of the day for comparison
     final DateTime today = DateTime(
       currentDate.year,
       currentDate.month,
@@ -132,261 +130,230 @@ class RecurringTransactionsProvider with ChangeNotifier {
     );
 
     for (var rule in List.from(_recurringTransactions)) {
-      if (rule.isInterestRule || rule.isSystemGenerated) {
+      // Iterate on a copy
+      // Skip interest rules; they are handled by a separate method
+      if (rule.isInterestRule) {
+        // Also skipping systemGenerated just in case, though interest rules are system.
         continue;
       }
 
-      DateTime nextDue = DateTime(
+      // Normalize nextDueDate from the rule to the beginning of its day
+      DateTime currentRuleNextDue = DateTime(
         rule.nextDueDate.year,
         rule.nextDueDate.month,
         rule.nextDueDate.day,
       );
-      bool ruleAdvancedInThisCycle = false;
+      bool ruleAdvancedThisCycle =
+          false; // Tracks if this rule's nextDueDate has been changed in the while loop
 
-      while (!nextDue.isAfter(today)) {
-        if (rule.endDate != null && nextDue.isAfter(rule.endDate!)) {
+      // Loop as long as the rule's next due date is on or before 'today'
+      while (!currentRuleNextDue.isAfter(today)) {
+        // Check if the rule has an end date and if the current due date has passed it
+        if (rule.endDate != null && currentRuleNextDue.isAfter(rule.endDate!)) {
           print(
-            "Recurring rule ID ${rule.id} ('${rule.description}') has passed end date. Stopping.",
+            "Recurring rule ID ${rule.id} ('${rule.description}') has passed its end date (${rule.endDate}). Stopping processing for this rule.",
           );
-          break;
+          // No need to update nextDueDate further if it's past the end date
+          ruleAdvancedThisCycle =
+              true; // Mark as advanced to prevent adding to rulesToUpdate with old date
+          break; // Exit while loop for this rule
         }
 
         print(
-          "Processing rule ID ${rule.id}: ${rule.description} due on $nextDue",
+          "Processing non-interest rule ID ${rule.id}: '${rule.description}' due on $currentRuleNextDue",
         );
-        bool currentIterationSuccess = false;
+        bool currentIterationDbSuccess = false;
 
-        if (rule.type == RecurringTransactionType.transfer) {
+        if (rule.type == TransactionType.transfer) {
           if (rule.transferToAccountId == null) {
             print(
               "Skipping transfer rule ID ${rule.id} (missing transferToAccountId).",
             );
+            // Still advance due date to prevent infinite loop on this invalid rule
           } else {
-            currentIterationSuccess = await _dbService.insertTransfer(
+            currentIterationDbSuccess = await _dbService.insertTransfer(
               fromAccountId: rule.accountId,
               toAccountId: rule.transferToAccountId!,
               amount: rule.amount.abs(),
-              timestamp: nextDue,
+              timestamp: currentRuleNextDue,
               description: rule.description ?? "Recurring Transfer",
-              // Use category from rule, ensuring it's the "Transfer" category when rule is created
               transferCategoryId: rule.categoryId,
+              recurringTransactionID: rule.id,
             );
-            if (currentIterationSuccess) {
-              print(
-                "Recurring Transfer processed successfully for rule ID ${rule.id}.",
-              );
-              transactionsWereProcessed = true;
-            } else {
-              print(
-                "Failed to process recurring Transfer for rule ID ${rule.id}.",
-              );
-            }
+            if (currentIterationDbSuccess)
+              transactionsWereProcessedThisRun = true;
           }
         } else {
           // Income or Expense
           final newTransaction = Transactions(
             accountId: rule.accountId,
             type:
-                rule.type == RecurringTransactionType.income
+                rule.type == TransactionType.income
                     ? TransactionType.income
                     : TransactionType.expense,
             amount:
-                rule.type == RecurringTransactionType.income
+                rule.type == TransactionType.income
                     ? rule.amount.abs()
                     : -rule.amount.abs(),
-            timestamp: nextDue,
+            timestamp:
+                currentRuleNextDue, // Transaction happens ON the due date (start of day)
             description: rule.description,
             categoryId: rule.categoryId,
+            recurringTransactionId: rule.id,
           );
-          // --- DIRECTLY INSERT into DB ---
           int newTxId = await _dbService.insertTransaction(newTransaction);
           if (newTxId > 0) {
-            print(
-              "Recurring Income/Expense processed successfully for rule ID ${rule.id}. Tx ID: $newTxId",
-            );
-            currentIterationSuccess = true;
-            transactionsWereProcessed = true;
-          } else {
-            print(
-              "Failed to process recurring Income/Expense for rule ID ${rule.id}.",
-            );
+            currentIterationDbSuccess = true;
+            transactionsWereProcessedThisRun = true;
           }
-          // --- ---
         }
 
-        // Advance nextDue only if successful or if it was a skippable structural issue
-        if (currentIterationSuccess ||
-            (rule.type == RecurringTransactionType.transfer &&
+        if (currentIterationDbSuccess ||
+            (rule.type == TransactionType.transfer &&
                 rule.transferToAccountId == null)) {
-          nextDue = _calculateNextDueDate(nextDue, rule.frequency);
-          ruleAdvancedInThisCycle = true;
-        } else {
-          // If a DB insert failed for a valid rule, we might want to stop processing this rule
-          // for this run to avoid hammering DB or creating inconsistent nextDue dates.
-          // Or, log and advance to prevent infinite loop on next app start.
-          print(
-            "DB operation failed for rule ${rule.id}. Advancing due date to prevent loop.",
-          );
-          nextDue = _calculateNextDueDate(
-            nextDue,
+          // If successful, or skippable issue, advance the due date
+          currentRuleNextDue = _calculateNextDueDate(
+            currentRuleNextDue,
             rule.frequency,
-          ); // Advance to avoid infinite loop
-          ruleAdvancedInThisCycle = true; // Mark as advanced for this cycle
-          // Break from WHILE loop for this rule in this run?
-          // break;
+          );
+          ruleAdvancedThisCycle = true;
+        } else {
+          // DB operation failed for a valid rule. Log, advance to prevent infinite loop, and potentially break for this rule.
+          print(
+            "DB operation failed for rule ${rule.id} for due date. Advancing due date to prevent loop.",
+          );
+          currentRuleNextDue = _calculateNextDueDate(
+            currentRuleNextDue,
+            rule.frequency,
+          );
+          ruleAdvancedThisCycle = true;
+          // break; // Optional: stop processing this rule for this run if one instance fails
         }
-      } // End while
+      } // End while loop (processing multiple occurrences of a single rule if overdue)
 
-      if (ruleAdvancedInThisCycle && nextDue != rule.nextDueDate) {
-        // Check if nextDue actually changed
-        if (rule.endDate == null || !nextDue.isAfter(rule.endDate!)) {
-          rulesToUpdate.add(rule.copyWith(nextDueDate: nextDue));
+      // If the rule's nextDueDate was advanced in this cycle, add it for DB update
+      if (ruleAdvancedThisCycle && currentRuleNextDue != rule.nextDueDate) {
+        // Final check: ensure new nextDueDate is not past a potential endDate
+        if (rule.endDate == null ||
+            !currentRuleNextDue.isAfter(rule.endDate!)) {
+          rulesToUpdateInDb.add(rule.copyWith(nextDueDate: currentRuleNextDue));
         } else {
           print(
-            "Recurring rule ID ${rule.id} reached end date. New due date $nextDue not saved.",
+            "Recurring rule ID ${rule.id} ('${rule.description}') reached end date after processing. New nextDueDate $currentRuleNextDue not saved beyond endDate.",
           );
+          // Optionally, you could also add logic here to delete or deactivate the rule if it's truly finished.
         }
       }
-    } // End for
+    } // End for loop over all rules
 
-    for (var ruleToUpdate in rulesToUpdate) {
+    // Batch update recurring transaction rules in the database
+    for (var ruleToUpdate in rulesToUpdateInDb) {
       await _dbService.updateRecurringTransaction(ruleToUpdate);
     }
 
-    if (rulesToUpdate.isNotEmpty) {
-      // If rules were updated, their list in provider changed
-      await fetchRecurringTransactions(); // Refreshes _recurringTransactions and notifies
-    } else if (transactionsWereProcessed && !rulesToUpdate.isNotEmpty) {
-      // If transactions were processed but no rules needed their nextDueDate updated
-      // (e.g. a one-time rule that's now past its end date),
-      // we still might want to notify if _isLoading was the only change.
-      // However, fetchRecurringTransactions() above or the final notify in the caller's
-      // sequence should cover UI refresh for the transaction list itself.
+    // If rules were updated OR transactions were processed, the local list needs refreshing.
+    // The 'transactionsWereProcessedThisRun' flag indicates if the main transaction list (managed by TransactionsProvider)
+    // is now stale and needs a full refresh by the caller (e.g., HomePage).
+    if (rulesToUpdateInDb.isNotEmpty) {
+      await fetchRecurringTransactions(); // Refreshes this provider's list and notifies its listeners.
     }
 
-    _setLoading(
-      false,
-    ); // Set loading false if it was set true at the start of this method
-    return transactionsWereProcessed; // Return true if any DB write occurred
+    _setLoading(false);
+    return transactionsWereProcessedThisRun;
   }
 
   Future<bool> processDueInterestTransactions(DateTime currentDate) async {
-    _setLoading(true); // Indicate processing
-    // It's often good to fetch fresh rules, especially if other processes might change them.
-    // If called immediately after processDueRecurringTransactions, this might be redundant
-    // if that method also calls fetchRecurringTransactions().
-    // await fetchRecurringTransactions();
+    _setLoading(true);
+    // Fetch fresh rules. If this is called after processDueRecurringTransactions,
+    // and that method calls fetchRecurringTransactions, this might be redundant.
+    // However, for standalone calls or robustness, it's good.
+    await fetchRecurringTransactions();
 
     bool anyInterestTransactionCreated = false;
     List<RecurringTransaction> interestRulesToUpdate = [];
-    final DateTime today = DateTime(
+
+    // 'currentDate' is the reference for "today". We care about the end of this day.
+    final DateTime endOfCurrentProcessingDay = DateTime(
       currentDate.year,
       currentDate.month,
       currentDate.day,
+      23,
+      59,
+      59,
+      999,
     );
 
-    // Iterate on a copy in case fetchRecurringTransactions is called inside loop by another async path
     for (var rule in List.from(_recurringTransactions)) {
-      if (!rule.isInterestRule) {
-        // Only process rules marked as interest rules
-        continue;
-      }
+      if (!rule.isInterestRule) continue;
 
-      // Normalize nextDueDate to compare with 'today' (ignoring time)
-      DateTime nextDue = DateTime(
+      // 'nextDueDate' from the rule is the *date* on which interest should be credited.
+      // We normalize it to the start of that day for comparison.
+      DateTime ruleNextDueDateNormalized = DateTime(
         rule.nextDueDate.year,
         rule.nextDueDate.month,
         rule.nextDueDate.day,
       );
-      bool ruleAdvancedThisCycle =
-          false; // Track if nextDueDate changed for this rule in this run
+      bool ruleAdvancedThisCycle = false;
 
-      // Loop while the rule is due (on or before today)
-      while (!nextDue.isAfter(today)) {
-        // Check for end date
-        if (rule.endDate != null && nextDue.isAfter(rule.endDate!)) {
+      // Loop while the rule's next due date (start of day) is on or before 'today' (start of day)
+      while (!ruleNextDueDateNormalized.isAfter(
+        DateTime(currentDate.year, currentDate.month, currentDate.day),
+      )) {
+        // The specific DateTime when interest is credited and balance is taken
+        DateTime interestCreditTimestamp = DateTime(
+          ruleNextDueDateNormalized.year,
+          ruleNextDueDateNormalized.month,
+          ruleNextDueDateNormalized.day,
+          23,
+          59,
+          59,
+          999, // End of the due day
+        );
+
+        // Check against rule's end date
+        if (rule.endDate != null &&
+            ruleNextDueDateNormalized.isAfter(rule.endDate!)) {
           print(
-            "Interest rule ID ${rule.id} for account ${rule.accountId} has passed its end date ($rule.endDate). Stopping.",
+            "Interest rule ID ${rule.id} (Acc ${rule.accountId}) passed end date (${rule.endDate}). Stopping.",
           );
-          break; // Stop processing this rule for future dates
+          ruleAdvancedThisCycle =
+              true; // To ensure it's considered for update if nextDueDate changed
+          break;
         }
 
         print(
-          "Processing interest rule ID ${rule.id} for account ${rule.accountId}, due on $nextDue",
+          "Processing interest rule ID ${rule.id} for account ${rule.accountId}, due on $ruleNextDueDateNormalized (credit at $interestCreditTimestamp)",
         );
 
-        // 1. Determine the period for which interest is being calculated.
-        //    The balance should be taken from the *start* of this interest period,
-        //    which is effectively the *previous* due date (or account creation/rule start date).
-        DateTime interestPeriodStartDate = today;
-        // To find the start of the *current* interest period, we go back one period from `nextDue`.
-        // This requires a robust way to subtract a period.
-        Jiffy jiffyNextDue = Jiffy.parseFromDateTime(nextDue);
-        switch (rule.frequency) {
-          case Frequency.daily:
-            interestPeriodStartDate = jiffyNextDue.subtract(days: 1).dateTime;
-            break;
-          case Frequency.weekly:
-            interestPeriodStartDate = jiffyNextDue.subtract(weeks: 1).dateTime;
-            break;
-          case Frequency.monthly:
-            interestPeriodStartDate = jiffyNextDue.subtract(months: 1).dateTime;
-            break;
-          case Frequency.yearly:
-            interestPeriodStartDate = jiffyNextDue.subtract(years: 1).dateTime;
-            break;
-        }
-        // Ensure interest period start is not before rule start date
-        if (interestPeriodStartDate.isBefore(rule.startDate)) {
-          interestPeriodStartDate = rule.startDate;
-        }
-
-        // 2. Fetch the account's balance at the END of the 'interestPeriodStartDate'
-        //    (or effectively, just before the 'nextDue' date).
-        //    For daily interest, this would be the balance at the end of the previous day.
-        //    For monthly, balance at end of previous month (relative to due date).
-        //    The date passed to getAccountBalanceAtDate should be the *last day of the period*
-        //    for which interest is being calculated.
-        DateTime balanceCalculationEndDate = nextDue.subtract(
-          const Duration(days: 1),
+        // 1. Balance Calculation: Use the 'interestCreditTimestamp'
+        //    getAccountBalanceAtDate will sum transactions <= interestCreditTimestamp.
+        //    This balance is *before* the current interest is added.
+        double
+        accountBalanceForInterest = await _dbService.getAccountBalanceAtDate(
+          rule.accountId,
+          interestCreditTimestamp, // Balance at the end of the due day, before this interest
         );
-        // Ensure balance calculation end date is not before the rule's start date
-        if (balanceCalculationEndDate.isBefore(rule.startDate)) {
-          // This scenario means we are calculating interest for the very first period.
-          // The balance to consider is effectively the initial balance if nextDue is the first due date
-          // or balance at rule.startDate if it's a later start.
-          // For simplicity, if balanceCalculationEndDate is before rule.startDate,
-          // it implies an issue or the very first period calculation.
-          // Let's assume getAccountBalanceAtDate handles startDate correctly with created_at.
-          // A more precise balance for the *first* period might use initial balance
-          // if nextDue is the first calculated due date from rule.startDate.
-        }
-
-        double accountBalanceForInterest = await _dbService
-            .getAccountBalanceAtDate(rule.accountId, balanceCalculationEndDate);
         print(
-          "Interest for Acc ${rule.accountId}: Balance on $balanceCalculationEndDate was \$${accountBalanceForInterest.toStringAsFixed(2)}",
+          "Interest for Acc ${rule.accountId}: Balance at $interestCreditTimestamp was \$${accountBalanceForInterest.toStringAsFixed(2)}",
         );
 
-        // 3. Calculate the interest amount for this specific period
-        // 'rule.amount' stores the ANNUAL interest rate as a percentage (e.g., 5 for 5%)
-        double annualRateDecimal =
-            rule.amount / 100.0; // Convert percentage e.g., 5% -> 0.05
+        // 2. Calculate Interest Amount (annual rate stored in rule.amount)
+        double annualRateDecimal = rule.amount / 100.0;
         double interestAmountForThisPeriod = 0;
-
+        // ... (Your switch (rule.frequency) to calculate interestAmountForThisPeriod) ...
+        // This calculation should use 'accountBalanceForInterest'
         switch (rule.frequency) {
           case Frequency.daily:
-            // (Balance * AnnualRate) / DaysInYear
-            // Consider leap years for more accuracy or use a fixed 365.25
             int daysInYear =
-                Jiffy.parseFromDateTime(nextDue).isLeapYear ? 366 : 365;
+                Jiffy.parseFromDateTime(interestCreditTimestamp).isLeapYear
+                    ? 366
+                    : 365;
             interestAmountForThisPeriod =
                 (accountBalanceForInterest * annualRateDecimal) / daysInYear;
             break;
           case Frequency.weekly:
             interestAmountForThisPeriod =
-                (accountBalanceForInterest * annualRateDecimal) /
-                (365.25 / 7); // Average weeks
+                (accountBalanceForInterest * annualRateDecimal) / (365.25 / 7);
             break;
           case Frequency.monthly:
             interestAmountForThisPeriod =
@@ -397,104 +364,117 @@ class RecurringTransactionsProvider with ChangeNotifier {
                 accountBalanceForInterest * annualRateDecimal;
             break;
         }
-
-        // Round to 2 decimal places for currency
         interestAmountForThisPeriod =
             (interestAmountForThisPeriod * 100).roundToDouble() / 100.0;
-
-        // Ensure interest isn't paid on negative balances (unless your bank does that!)
-        if (accountBalanceForInterest < 0) {
+        if (accountBalanceForInterest < 0 && interestAmountForThisPeriod > 0) {
+          // Typically no interest on negative balance, or banks might charge interest (which would be an expense rule)
           interestAmountForThisPeriod = 0;
         }
 
         bool currentIterationDbSuccess = false;
         if (interestAmountForThisPeriod > 0.001) {
-          // Only create transaction if interest is earned (e.g., > 0.01 cent)
           final newInterestTransaction = Transactions(
             accountId: rule.accountId,
-            type: TransactionType.income,
-            amount: interestAmountForThisPeriod, // Positive amount
-            timestamp: nextDue, // Interest credited on this due date
+            type: TransactionType.income, // Ensure this is correct
+            amount: interestAmountForThisPeriod,
+            timestamp:
+                interestCreditTimestamp, // <<< Use the end-of-day timestamp
             description:
                 rule.description ??
-                "Interest Earned (${DateFormat('MMM yyyy').format(nextDue)})", // More descriptive
+                "Interest Earned (${DateFormat('dd MMM yyyy').format(ruleNextDueDateNormalized)})",
             categoryId: 3,
-            // recurringTransactionId: rule.id, // Optional: link to the rule
+            recurringTransactionId: rule.id,
           );
           int newTxId = await _dbService.insertTransaction(
             newInterestTransaction,
           );
           if (newTxId > 0) {
-            currentIterationDbSuccess = true;
-            anyInterestTransactionCreated = true; // Set the overall flag
+            currentIterationDbSuccess =
+                true; // DB insert of transaction was successful
+            anyInterestTransactionCreated = true;
             print(
-              "Interest generated and saved for Acc ${rule.accountId}: \$${interestAmountForThisPeriod.toStringAsFixed(2)} on $nextDue",
+              "Interest generated and saved for Acc ${rule.accountId}: \$${interestAmountForThisPeriod.toStringAsFixed(2)} on $interestCreditTimestamp",
             );
 
-            // --- CRITICAL TODO: Update account's last_interest_credit_date ---
-            // This needs a new method in DatabaseService and to be called here or after loop.
-            // Example: await _dbService.updateAccountnextInterestCreditDate(rule.accountId, nextDue);
-            // For now, this is a manual step you'd need to add. If not done, interest
-            // might be calculated repeatedly for the same period if the rule's nextDueDate
-            // isn't advanced past the last credit event.
+            // --- UPDATE Account's lastInterestCreditDate in DB ---
+            int accountUpdateSuccess = await _dbService
+                .updateAccountLastInterestCreditDate(
+                  rule.accountId,
+                  ruleNextDueDateNormalized, // Store the DATE part
+                );
+            if (accountUpdateSuccess > 0) {
+              print(
+                "Successfully updated lastInterestCreditDate for account ${rule.accountId} to $ruleNextDueDateNormalized",
+              );
+            } else {
+              print(
+                "ERROR: Failed to update lastInterestCreditDate for account ${rule.accountId}",
+              );
+              currentIterationDbSuccess =
+                  false; // Consider this a failure if account update fails
+            }
             // --- ---
           } else {
             print(
               "Failed to save generated interest transaction for rule ID ${rule.id}.",
             );
+            currentIterationDbSuccess = false;
           }
         } else {
           print(
-            "No significant interest earned for Acc ${rule.accountId} for period ending $nextDue (Amount: $interestAmountForThisPeriod). Skipping transaction.",
+            "No significant interest for Acc ${rule.accountId} for period ending $ruleNextDueDateNormalized (Amount: $interestAmountForThisPeriod).",
           );
           currentIterationDbSuccess =
-              true; // Considered "processed" for this due date even if no tx created
+              true; // Consider "processed" for this due date
         }
 
-        // Advance nextDueDate
         if (currentIterationDbSuccess) {
-          // Advance if processed (even if $0 interest) or if DB save failed (to avoid loop)
-          nextDue = _calculateNextDueDate(nextDue, rule.frequency);
+          ruleNextDueDateNormalized = _calculateNextDueDate(
+            ruleNextDueDateNormalized,
+            rule.frequency,
+          );
           ruleAdvancedThisCycle = true;
         } else {
-          // If DB insert specifically failed for a >0 interest amount.
           print(
-            "DB save for interest transaction failed for rule ${rule.id}. Advancing due date to prevent loop.",
+            "DB operation failed for interest rule ${rule.id}. Advancing due date to prevent loop.",
           );
-          nextDue = _calculateNextDueDate(nextDue, rule.frequency);
-          ruleAdvancedThisCycle =
-              true; // Still advance to prevent infinite loop
-          // break; // Optionally break from while loop for this rule if one instance fails.
+          ruleNextDueDateNormalized = _calculateNextDueDate(
+            ruleNextDueDateNormalized,
+            rule.frequency,
+          );
+          ruleAdvancedThisCycle = true;
+          // break; // Optional: Stop processing this specific rule for this run if a critical part failed
         }
-      } // end while for a single rule
+      } // End while
 
-      // If nextDue was updated for this rule, prepare to save it
-      if (ruleAdvancedThisCycle && nextDue != rule.nextDueDate) {
-        if (rule.endDate == null || !nextDue.isAfter(rule.endDate!)) {
-          interestRulesToUpdate.add(rule.copyWith(nextDueDate: nextDue));
+      if (ruleAdvancedThisCycle &&
+          ruleNextDueDateNormalized != rule.nextDueDate) {
+        if (rule.endDate == null ||
+            !ruleNextDueDateNormalized.isAfter(rule.endDate!)) {
+          interestRulesToUpdate.add(
+            rule.copyWith(nextDueDate: ruleNextDueDateNormalized),
+          );
         } else {
           print(
-            "Interest rule ID ${rule.id} for account ${rule.accountId} reached its end date. Not updating nextDueDate further.",
+            "Interest rule ID ${rule.id} (Acc ${rule.accountId}) reached end date. Not updating further.",
           );
-          // Optionally: Delete or deactivate the rule here if it's past its end date.
-          // await _dbService.deleteRecurringTransaction(rule.id!);
         }
       }
-    } // end for loop over all rules
+    } // End for
 
-    // Batch update all recurring transaction rules that had their next_due_dates changed
     for (var ruleToUpdate in interestRulesToUpdate) {
       await _dbService.updateRecurringTransaction(ruleToUpdate);
     }
 
-    // If rules were updated, their list in this provider has changed,
-    // so refetch to update the local _recurringTransactions list and notify listeners.
-    if (interestRulesToUpdate.isNotEmpty) {
+    if (interestRulesToUpdate.isNotEmpty || anyInterestTransactionCreated) {
+      // If rules were updated or interest transactions were created,
+      // refetching rules is good for this provider's state.
+      // The main transactions list will be refreshed by HomePage.
       await fetchRecurringTransactions();
     }
 
     _setLoading(false);
-    return anyInterestTransactionCreated; // Return true if any new interest transaction was actually CREATED
+    return anyInterestTransactionCreated;
   }
 
   Future<RecurringTransaction?> _findExistingInterestRule(int accountId) async {

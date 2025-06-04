@@ -196,6 +196,24 @@ class DatabaseService {
     });
   }
 
+  Future<int> updateAccountLastInterestCreditDate(
+    int accountId,
+    DateTime newCreditDate,
+  ) async {
+    final db = await database;
+    print(
+      "DB Service: Updating lastInterestCreditDate for account $accountId to ${newCreditDate.toIso8601String()}",
+    );
+    return await db.update(
+      'accounts',
+      {
+        'last_interest_credit_date': newCreditDate.toIso8601String(),
+      }, // Store as ISO string
+      where: 'id = ?',
+      whereArgs: [accountId],
+    );
+  }
+
   Future<int> deleteAccount(int id) async {
     Database db = await database;
     // Note: ON DELETE CASCADE will handle deleting related transactions.
@@ -735,10 +753,11 @@ class DatabaseService {
   Future<bool> insertTransfer({
     required int fromAccountId,
     required int toAccountId,
-    required double amount, // Always positive, sign determined by type
+    required double amount,
     required DateTime timestamp,
     String? description,
-    required int transferCategoryId, // ID of your "Transfer" category
+    required int transferCategoryId,
+    int? recurringTransactionID,
   }) async {
     if (fromAccountId == toAccountId) {
       print("Error: Cannot transfer to the same account.");
@@ -760,6 +779,7 @@ class DatabaseService {
           timestamp: timestamp,
           description: description,
           categoryId: transferCategoryId,
+          recurringTransactionId: recurringTransactionID,
         );
         int outgoingId = await _insertSingleTransaction(
           txn,
@@ -776,6 +796,7 @@ class DatabaseService {
           timestamp: timestamp,
           description: description,
           categoryId: transferCategoryId,
+          recurringTransactionId: recurringTransactionID,
           // Link to the outgoing transaction temporarily
           // transferPeerTransactionId: outgoingId, // Will be updated below
         );

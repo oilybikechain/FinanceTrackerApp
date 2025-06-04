@@ -110,10 +110,19 @@ class TransactionsTile extends StatelessWidget {
                       MainAxisSize.min, // Column takes minimum vertical space
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
-                    Text(
-                      transactionData.description!,
-                      style: Theme.of(context).textTheme.titleMedium,
-                      textAlign: TextAlign.left,
+                    Row(
+                      children: [
+                        transactionData.recurringTransactionId != null
+                            ? Icon(Icons.repeat)
+                            : SizedBox.shrink(),
+
+                        SizedBox(width: 2),
+                        Text(
+                          transactionData.description!,
+                          style: Theme.of(context).textTheme.titleMedium,
+                          textAlign: TextAlign.left,
+                        ),
+                      ],
                     ),
                     Text(
                       formattedDate,

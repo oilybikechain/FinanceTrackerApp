@@ -58,6 +58,7 @@ class RecurringTransactionsTile extends StatelessWidget {
       amountColor = const Color.fromARGB(255, 255, 69, 69);
     } else if (recurringTransactionData.type == TransactionType.transfer) {
       amountText = '\$ ${recurringTransactionData.amount}';
+      amountColor = Theme.of(context).colorScheme.onSurface;
     }
 
     if (_isInterestMode) {
@@ -97,6 +98,8 @@ class RecurringTransactionsTile extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                     textAlign: TextAlign.left,
                   ),
+
+                  Text(recurringTransactionData.amount.toString()),
 
                   SizedBox(height: 6),
 

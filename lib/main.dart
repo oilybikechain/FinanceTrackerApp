@@ -3,6 +3,7 @@ import 'package:finance_tracker/pages/recurring_transactions_page.dart';
 import 'package:finance_tracker/pages/setup_page.dart';
 import 'package:finance_tracker/services/account_provider.dart';
 import 'package:finance_tracker/services/category_provider.dart';
+import 'package:finance_tracker/services/database_service.dart';
 import 'package:finance_tracker/services/recurring_transactions_provider.dart';
 import 'package:finance_tracker/services/transactions_provider.dart';
 import 'package:finance_tracker/pages/accounts_page.dart';

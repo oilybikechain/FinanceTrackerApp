@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:finance_tracker/data/category_class.dart';
 import 'package:finance_tracker/data/listitem_class.dart';
 import 'package:finance_tracker/services/account_provider.dart';
@@ -5,6 +6,7 @@ import 'package:finance_tracker/data/accounts_class.dart';
 import 'package:finance_tracker/data/enums.dart';
 import 'package:finance_tracker/data/transactions_class.dart';
 import 'package:finance_tracker/services/category_provider.dart';
+import 'package:finance_tracker/services/recurring_transactions_provider.dart';
 import 'package:finance_tracker/services/settings_service.dart';
 import 'package:finance_tracker/services/transactions_provider.dart';
 import 'package:finance_tracker/utilities/app_drawer.dart';
@@ -194,6 +196,8 @@ class _HomePageState extends State<HomePage> {
       context,
       listen: false,
     );
+    final recurringTransactionsProvider =
+        Provider.of<RecurringTransactionsProvider>(context, listen: false);
 
     try {
       if (accountProvider.accounts.isEmpty) {
@@ -230,6 +234,13 @@ class _HomePageState extends State<HomePage> {
           "HomePage: Categories already loaded or loading. Count: ${categoryProvider.categories.length}",
         );
       }
+
+      await recurringTransactionsProvider.processDueRecurringTransactions(
+        DateTime.now(),
+      );
+      await recurringTransactionsProvider.processDueInterestTransactions(
+        DateTime.now(),
+      );
 
       final dateRange = _getStartEndDate();
 
@@ -420,6 +431,51 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  List<ListItem> _buildTransactionsDisplay(
+    List<Transactions> transactionsToDisplay,
+    List<Account> allAccounts,
+    List<Category> allCategories,
+  ) {
+    List<ListItem> displayItems = [];
+    if (transactionsToDisplay.isNotEmpty) {
+      DateTime? lastDate;
+      for (var transaction in transactionsToDisplay) {
+        // Assuming transactions are sorted newest first
+        final transactionDate = DateTime(
+          // Normalize to just date part for comparison
+          transaction.timestamp.toLocal().year,
+          transaction.timestamp.toLocal().month,
+          transaction.timestamp.toLocal().day,
+        );
+
+        if (lastDate == null || lastDate != transactionDate) {
+          displayItems.add(
+            DateSeparatorItem(transactionDate),
+          ); // Add date header
+          lastDate = transactionDate;
+        }
+
+        final associatedAccount = allAccounts.firstWhereOrNull(
+          (acc) => acc.id == transaction.accountId,
+        );
+        final associatedCategory =
+            allCategories.firstWhereOrNull(
+              (cat) => cat.id == transaction.categoryId,
+            ) ??
+            allCategories.firstWhere((cat) => cat.id == 1);
+
+        displayItems.add(
+          TransactionItem(
+            transaction,
+            associatedAccount?.name ?? 'Unknown Account',
+            associatedCategory,
+          ),
+        );
+      }
+    }
+    return displayItems;
+  }
+
   @override
   Widget build(BuildContext context) {
     final transactionsProvider = context.watch<TransactionsProvider>();
@@ -441,46 +497,15 @@ class _HomePageState extends State<HomePage> {
     final List<Account> accountData = accountProvider.accounts;
     final pieChartIncomeData = transactionsProvider.incomePieData;
     final pieChartExpenseData = transactionsProvider.expensePieData;
+    final List<ListItem> displayItems = _buildTransactionsDisplay(
+      transactionsProvider.transactions,
+      accountData,
+      categoryData,
+    );
 
     print(chartPoints);
     print(maxYValueForChart);
     print(selectedAccountPeriodEndBalance);
-
-    List<ListItem> displayItems = [];
-    if (transactionsProvider.transactions.isNotEmpty) {
-      DateTime? lastDate;
-      for (var transaction in transactionsProvider.transactions) {
-        // Assuming transactions are sorted newest first
-        final transactionDate = DateTime(
-          // Normalize to just date part for comparison
-          transaction.timestamp.toLocal().year,
-          transaction.timestamp.toLocal().month,
-          transaction.timestamp.toLocal().day,
-        );
-
-        if (lastDate == null || lastDate != transactionDate) {
-          displayItems.add(
-            DateSeparatorItem(transactionDate),
-          ); // Add date header
-          lastDate = transactionDate;
-        }
-
-        final Account associatedAccount = accountData.firstWhere(
-          (acc) => acc.id == transaction.accountId,
-        );
-        final Category associatedCategory = categoryData.firstWhere(
-          (cat) => cat.id == transaction.categoryId,
-        );
-
-        displayItems.add(
-          TransactionItem(
-            transaction,
-            associatedAccount.name,
-            associatedCategory,
-          ),
-        );
-      }
-    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Homepage')),
