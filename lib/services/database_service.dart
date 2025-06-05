@@ -750,6 +750,113 @@ class DatabaseService {
     );
   }
 
+  Future<bool> updateTransfer({
+    required int
+    originalOutgoingTransactionId, // ID of one of the original transfer parts
+    required int newFromAccountId,
+    required int newToAccountId,
+    required double newAmount, // Always positive
+    required DateTime newTimestamp,
+    String? newDescription,
+    required int newTransferCategoryId,
+  }) async {
+    if (newFromAccountId == newToAccountId) return false;
+    if (newAmount <= 0) return false;
+
+    final db = await database;
+    try {
+      await db.transaction((txn) async {
+        // 1. Find the original peer transaction ID
+        final originalTxMaps = await txn.query(
+          'transactions',
+          columns: ['transfer_peer_transaction_id'],
+          where: 'id = ?',
+          whereArgs: [originalOutgoingTransactionId],
+          limit: 1,
+        );
+        if (originalTxMaps.isEmpty)
+          throw Exception("Original transaction for update not found.");
+        final int? originalPeerId =
+            originalTxMaps.first['transfer_peer_transaction_id'] as int?;
+
+        // 2. Delete the original outgoing transaction
+        await txn.delete(
+          'transactions',
+          where: 'id = ?',
+          whereArgs: [originalOutgoingTransactionId],
+        );
+        print("Deleted original outgoing part: $originalOutgoingTransactionId");
+
+        // 3. Delete the original peer transaction (if it existed)
+        if (originalPeerId != null) {
+          await txn.delete(
+            'transactions',
+            where: 'id = ?',
+            whereArgs: [originalPeerId],
+          );
+          print("Deleted original peer part: $originalPeerId");
+        }
+
+        // 4. Now insert the new transfer pair (re-using insertTransfer logic)
+        //    To reuse insertTransfer logic properly, we'd need to call it directly,
+        //    but it creates its own transaction. So, we replicate its core here.
+        //    OR, make _insertSingleTransaction and _updateTransactionPeerId public for reuse.
+        //    For now, replicating for clarity within this transaction block:
+
+        final outgoingTx = Transactions(
+          accountId: newFromAccountId,
+          type: TransactionType.transfer,
+          amount: -newAmount.abs(),
+          timestamp: newTimestamp,
+          description: newDescription,
+          categoryId: newTransferCategoryId,
+        );
+        int newOutgoingId = await txn.insert(
+          'transactions',
+          outgoingTx.toMap()..remove('id'),
+        );
+        if (newOutgoingId == 0)
+          throw Exception("Failed to insert new outgoing transfer part.");
+
+        final incomingTx = Transactions(
+          accountId: newToAccountId,
+          type: TransactionType.transfer,
+          amount: newAmount.abs(),
+          timestamp: newTimestamp,
+          description: newDescription,
+          categoryId: newTransferCategoryId,
+        );
+        int newIncomingId = await txn.insert(
+          'transactions',
+          incomingTx.toMap()..remove('id'),
+        );
+        if (newIncomingId == 0)
+          throw Exception("Failed to insert new incoming transfer part.");
+
+        await txn.update(
+          'transactions',
+          {'transfer_peer_transaction_id': newIncomingId},
+          where: 'id = ?',
+          whereArgs: [newOutgoingId],
+        );
+        await txn.update(
+          'transactions',
+          {'transfer_peer_transaction_id': newOutgoingId},
+          where: 'id = ?',
+          whereArgs: [newIncomingId],
+        );
+
+        print(
+          "Successfully updated transfer by creating new pair: $newOutgoingId <-> $newIncomingId",
+        );
+      });
+      return true;
+    } catch (e) {
+      print("Error updating transfer in DB Service: $e");
+      return false;
+    }
+  }
+
   Future<bool> insertTransfer({
     required int fromAccountId,
     required int toAccountId,

@@ -315,14 +315,7 @@ class _RecurringTransactionsPageState extends State<RecurringTransactionsPage> {
               ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('No recurring transactions set up.'),
-                    const SizedBox(height: 10),
-                    ElevatedButton(
-                      onPressed: () => _showRecurringTransactionsForm(),
-                      child: const Text('Add First Recurring Transaction'),
-                    ),
-                  ],
+                  children: [const Text('No recurring transactions set up.')],
                 ),
               )
               : ListView.builder(

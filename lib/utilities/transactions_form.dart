@@ -42,16 +42,25 @@ class _TransactionsFormState extends State<TransactionsForm> {
   int? _selectedDestinationAccountId;
   int _selectedCategoryId = 1;
   bool _isLoadingDefaults = false;
+  Transactions? peerTransaction;
 
   @override
   void initState() {
     super.initState();
+    _prefillFormData();
+    _amountController.addListener(_syncSlidersFromTextField);
+  }
 
+  Future<void> _prefillFormData() async {
     final accountProvider = Provider.of<AccountProvider>(
       context,
       listen: false,
     );
     final categoryProvider = Provider.of<CategoryProvider>(
+      context,
+      listen: false,
+    );
+    final transactionsProvider = Provider.of<TransactionsProvider>(
       context,
       listen: false,
     );
@@ -93,7 +102,15 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
       _selectedCategoryId = transaction.categoryId;
 
-      //TODO Add support for transfers and recurring transactions.
+      if (widget.existingTransaction!.type == TransactionType.transfer) {
+        print(
+          "Existing Transaction: ID=${widget.existingTransaction?.id}, Type=${widget.existingTransaction?.type}, PeerID=${widget.existingTransaction?.transferPeerTransactionId}",
+        );
+        peerTransaction = await transactionsProvider.fetchTransactionById(
+          transactionId: widget.existingTransaction!.transferPeerTransactionId!,
+        );
+        _selectedDestinationAccountId = peerTransaction!.accountId;
+      }
     } else {
       _amountController.text = "0.00";
       _selectedtransactionType = TransactionType.expense;
@@ -108,8 +125,7 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
       _selectedCategoryId = 1;
     }
-
-    _amountController.addListener(_syncSlidersFromTextField);
+    setState(() {});
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -197,19 +213,34 @@ class _TransactionsFormState extends State<TransactionsForm> {
     bool success = false;
 
     if (_isEditMode) {
-      print("Updating account ID: ${widget.existingTransaction!.id}");
-      final updatedTransaction = widget.existingTransaction!.copyWith(
-        description: description,
-        amount: finalAmount,
-        accountId: account,
-        type: transactionType,
-        timestamp: transactionTimestamp,
-        categoryId: selectedCategoryId,
-      );
-      // Await the result directly from the provider
-      success = await transactionsProvider.updateTransaction(
-        updatedTransaction,
-      );
+      if (_selectedtransactionType == TransactionType.transfer) {
+        success = await transactionsProvider.updateTransfer(
+          originalOutgoingTransactionId:
+              widget
+                  .existingTransaction!
+                  .id!, // Pass the ID of the tx being edited
+          newFromAccountId: account!,
+          newToAccountId: _selectedDestinationAccountId!,
+          newAmount: amount.abs(), // Send positive amount
+          newTimestamp: transactionTimestamp,
+          newDescription: description,
+          newTransferCategoryId: 2,
+        );
+      } else {
+        print("Updating account ID: ${widget.existingTransaction!.id}");
+        final updatedTransaction = widget.existingTransaction!.copyWith(
+          description: description,
+          amount: finalAmount,
+          accountId: account,
+          type: transactionType,
+          timestamp: transactionTimestamp,
+          categoryId: selectedCategoryId,
+        );
+        // Await the result directly from the provider
+        success = await transactionsProvider.updateTransaction(
+          updatedTransaction,
+        );
+      }
     } else {
       if (_selectedtransactionType == TransactionType.transfer) {
         // --- Handle Transfer ---
@@ -439,57 +470,65 @@ class _TransactionsFormState extends State<TransactionsForm> {
 
             const SizedBox(height: 20),
 
-            SegmentedButton(
-              segments: const <ButtonSegment<TransactionType>>[
-                ButtonSegment(
-                  value: TransactionType.expense,
-                  label: Text('Expense'),
+            IgnorePointer(
+              ignoring: _isEditMode,
+              child: Opacity(
+                opacity: _isEditMode ? 0.6 : 1.0,
+                child: SegmentedButton(
+                  segments: const <ButtonSegment<TransactionType>>[
+                    ButtonSegment(
+                      value: TransactionType.expense,
+                      label: Text('Expense'),
+                    ),
+                    ButtonSegment(
+                      value: TransactionType.transfer,
+                      label: Text("Transfer"),
+                    ),
+                    ButtonSegment(
+                      value: TransactionType.income,
+                      label: Text("Income"),
+                    ),
+                  ],
+
+                  selected: <TransactionType>{
+                    if (_selectedtransactionType != null)
+                      _selectedtransactionType!,
+                  },
+
+                  onSelectionChanged: (Set<TransactionType> newSelection) {
+                    setState(() {
+                      _selectedtransactionType = newSelection.firstOrNull;
+                    });
+                  },
+
+                  style: ButtonStyle(
+                    backgroundColor: WidgetStateProperty.resolveWith<Color?>((
+                      Set<WidgetState> states,
+                    ) {
+                      if (states.contains(WidgetState.selected)) {
+                        if (_selectedtransactionType ==
+                            TransactionType.expense) {
+                          return Colors.red;
+                        } else if (_selectedtransactionType ==
+                            TransactionType.income) {
+                          return Colors.green;
+                        } else if (_selectedtransactionType ==
+                            TransactionType.transfer) {
+                          return Colors.blue;
+                        }
+                      }
+                      return null; // Use default background color otherwise (usually transparent or theme-based)
+                    }),
+
+                    foregroundColor: WidgetStateProperty.resolveWith<Color?>((
+                      Set<WidgetState> states,
+                    ) {
+                      final theme = Theme.of(context);
+
+                      return theme.colorScheme.onSurface;
+                    }),
+                  ),
                 ),
-                ButtonSegment(
-                  value: TransactionType.transfer,
-                  label: Text("Transfer"),
-                ),
-                ButtonSegment(
-                  value: TransactionType.income,
-                  label: Text("Income"),
-                ),
-              ],
-
-              selected: <TransactionType>{
-                if (_selectedtransactionType != null) _selectedtransactionType!,
-              },
-
-              onSelectionChanged: (Set<TransactionType> newSelection) {
-                setState(() {
-                  _selectedtransactionType = newSelection.firstOrNull;
-                });
-              },
-
-              style: ButtonStyle(
-                backgroundColor: WidgetStateProperty.resolveWith<Color?>((
-                  Set<WidgetState> states,
-                ) {
-                  if (states.contains(WidgetState.selected)) {
-                    if (_selectedtransactionType == TransactionType.expense) {
-                      return Colors.red;
-                    } else if (_selectedtransactionType ==
-                        TransactionType.income) {
-                      return Colors.green;
-                    } else if (_selectedtransactionType ==
-                        TransactionType.transfer) {
-                      return Colors.blue;
-                    }
-                  }
-                  return null; // Use default background color otherwise (usually transparent or theme-based)
-                }),
-
-                foregroundColor: WidgetStateProperty.resolveWith<Color?>((
-                  Set<WidgetState> states,
-                ) {
-                  final theme = Theme.of(context);
-
-                  return theme.colorScheme.onSurface;
-                }),
               ),
             ),
 

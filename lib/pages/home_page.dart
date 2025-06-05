@@ -510,418 +510,463 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Homepage')),
       drawer: const AppDrawer(), // Use the reusable drawer widget here!
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                SizedBox(
-                  width: 100,
-                  child: DropdownButtonFormField<int>(
-                    isExpanded:
-                        true, // Makes dropdown take full width of its Expanded parent
-                    value: _selectedAccountId,
-                    decoration: InputDecoration(
-                      labelText: 'Account',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12.0,
-                        vertical: 8.0,
-                      ), // Adjust padding
+      body:
+          accountData.isEmpty
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'No accounts created. Create an account to get started!',
                     ),
-                    // Use _accountsForDropdown from state
-                    items:
-                        _accountsForDropdown.map((Account account) {
-                          return DropdownMenuItem<int>(
-                            value: account.id,
-                            child: Text(
-                              account.name,
-                              overflow:
-                                  TextOverflow
-                                      .ellipsis, // Prevent long names from overflowing
-                            ),
-                          );
-                        }).toList(),
-                    onChanged: (int? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _selectedAccountId = newValue;
-                        });
-                        _fetchTransactions();
-                        _fetchPeriodEndBalance();
-                      }
-                    },
-                    // No validator needed if "All Accounts" is always a valid selection
-                  ),
+                    SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, "/setuppage");
+                      },
+                      child: Text("To accounts page!"),
+                    ),
+                  ],
                 ),
-
-                const Spacer(),
-
-                // Adjust flex to balance with dropdown
-                SizedBox(
-                  width: 175,
-                  child: SegmentedButton<TimePeriod>(
-                    segments: const <ButtonSegment<TimePeriod>>[
-                      ButtonSegment<TimePeriod>(
-                        value: TimePeriod.day,
-                        label: Text('D'),
-                      ),
-                      ButtonSegment<TimePeriod>(
-                        value: TimePeriod.week,
-                        label: Text('W'),
-                      ),
-                      ButtonSegment<TimePeriod>(
-                        value: TimePeriod.month,
-                        label: Text('M'),
-                      ),
-                      ButtonSegment<TimePeriod>(
-                        value: TimePeriod.year,
-                        label: Text('Y'),
-                      ),
-                    ],
-                    selected: <TimePeriod>{
-                      _selectedTimePeriod,
-                    }, // The selected value
-                    onSelectionChanged: (Set<TimePeriod> newSelection) {
-                      if (newSelection.isNotEmpty) {
-                        // Ensure a selection is made
-                        setState(() {
-                          _selectedTimePeriod = newSelection.first;
-                        });
-                        _fetchTransactions(); // Re-fetch transactions when period changes
-                        _fetchPeriodEndBalance();
-                      }
-                    },
-                    multiSelectionEnabled: false,
-                    showSelectedIcon: false,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: 8.0,
-              horizontal: 12.0,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Expanded(
-                  child:
-                      !isAccountCreated
-                          ? Column(
-                            children: [
-                              Text(
-                                'Account not',
-                                style: Theme.of(context).textTheme.titleMedium,
+              )
+              : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        SizedBox(
+                          width: 100,
+                          child: DropdownButtonFormField<int>(
+                            isExpanded:
+                                true, // Makes dropdown take full width of its Expanded parent
+                            value: _selectedAccountId,
+                            decoration: InputDecoration(
+                              labelText: 'Account',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              Text(
-                                'created yet',
-                                style: Theme.of(context).textTheme.titleMedium,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12.0,
+                                vertical: 8.0,
+                              ), // Adjust padding
+                            ),
+                            // Use _accountsForDropdown from state
+                            items:
+                                _accountsForDropdown.map((Account account) {
+                                  return DropdownMenuItem<int>(
+                                    value: account.id,
+                                    child: Text(
+                                      account.name,
+                                      overflow:
+                                          TextOverflow
+                                              .ellipsis, // Prevent long names from overflowing
+                                    ),
+                                  );
+                                }).toList(),
+                            onChanged: (int? newValue) {
+                              if (newValue != null) {
+                                setState(() {
+                                  _selectedAccountId = newValue;
+                                });
+                                _fetchTransactions();
+                                _fetchPeriodEndBalance();
+                              }
+                            },
+                            // No validator needed if "All Accounts" is always a valid selection
+                          ),
+                        ),
+
+                        const Spacer(),
+
+                        // Adjust flex to balance with dropdown
+                        SizedBox(
+                          width: 175,
+                          child: SegmentedButton<TimePeriod>(
+                            segments: const <ButtonSegment<TimePeriod>>[
+                              ButtonSegment<TimePeriod>(
+                                value: TimePeriod.day,
+                                label: Text('D'),
+                              ),
+                              ButtonSegment<TimePeriod>(
+                                value: TimePeriod.week,
+                                label: Text('W'),
+                              ),
+                              ButtonSegment<TimePeriod>(
+                                value: TimePeriod.month,
+                                label: Text('M'),
+                              ),
+                              ButtonSegment<TimePeriod>(
+                                value: TimePeriod.year,
+                                label: Text('Y'),
                               ),
                             ],
-                          )
-                          : Column(
+                            selected: <TimePeriod>{
+                              _selectedTimePeriod,
+                            }, // The selected value
+                            onSelectionChanged: (Set<TimePeriod> newSelection) {
+                              if (newSelection.isNotEmpty) {
+                                // Ensure a selection is made
+                                setState(() {
+                                  _selectedTimePeriod = newSelection.first;
+                                });
+                                _fetchTransactions(); // Re-fetch transactions when period changes
+                                _fetchPeriodEndBalance();
+                              }
+                            },
+                            multiSelectionEnabled: false,
+                            showSelectedIcon: false,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8.0,
+                      horizontal: 12.0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(
+                          child:
+                              !isAccountCreated
+                                  ? Column(
+                                    children: [
+                                      Text(
+                                        'Account not',
+                                        style:
+                                            Theme.of(
+                                              context,
+                                            ).textTheme.titleMedium,
+                                      ),
+                                      Text(
+                                        'created yet',
+                                        style:
+                                            Theme.of(
+                                              context,
+                                            ).textTheme.titleMedium,
+                                      ),
+                                    ],
+                                  )
+                                  : Column(
+                                    children: [
+                                      Text(
+                                        'Balance:',
+                                        style:
+                                            Theme.of(
+                                              context,
+                                            ).textTheme.titleMedium,
+                                      ),
+                                      Text(
+                                        selectedAccountPeriodEndBalance != null
+                                            ? selectedAccountPeriodEndBalance <
+                                                    0
+                                                ? '-\$${selectedAccountPeriodEndBalance.abs().toStringAsFixed(2)}'
+                                                : '\$${selectedAccountPeriodEndBalance.toStringAsFixed(2)}'
+                                            : '\$0.00',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium?.copyWith(
+                                          color:
+                                              selectedAccountPeriodEndBalance ==
+                                                      null
+                                                  ? Colors.grey
+                                                  : (selectedAccountPeriodEndBalance <
+                                                          0
+                                                      ? Colors.red
+                                                      : Colors.green),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ],
+                                  ),
+                        ),
+
+                        Expanded(
+                          child: Column(
                             children: [
                               Text(
-                                'Balance:',
+                                "Income:",
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               Text(
-                                selectedAccountPeriodEndBalance != null
-                                    ? selectedAccountPeriodEndBalance < 0
-                                        ? '-\$${selectedAccountPeriodEndBalance.abs().toStringAsFixed(2)}'
-                                        : '\$${selectedAccountPeriodEndBalance.toStringAsFixed(2)}'
-                                    : '\$0.00',
-                                style: Theme.of(
-                                  context,
-                                ).textTheme.titleMedium?.copyWith(
-                                  color:
-                                      selectedAccountPeriodEndBalance == null
-                                          ? Colors.grey
-                                          : (selectedAccountPeriodEndBalance < 0
-                                              ? Colors.red
-                                              : Colors.green),
-                                ),
+                                '\$${totalIncome.toStringAsFixed(2)}',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(color: Colors.green),
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
                               ),
                             ],
                           ),
-                ),
-
-                Expanded(
-                  child: Column(
-                    children: [
-                      Text(
-                        "Income:",
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      Text(
-                        '\$${totalIncome.toStringAsFixed(2)}',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.titleMedium?.copyWith(color: Colors.green),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Text(
-                        "Expense:",
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      Text(
-                        '-\$${totalExpense.toStringAsFixed(2)}',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.titleMedium?.copyWith(color: Colors.red),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Text(
-                        "Net: ",
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      Text(
-                        netChange < 0
-                            ? '-\$${netChange.abs().toStringAsFixed(2)}'
-                            : '\$${netChange.toStringAsFixed(2)}',
-                        style:
-                            netChange > 0
-                                ? Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(color: Colors.green)
-                                : Theme.of(context).textTheme.titleMedium
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Text(
+                                "Expense:",
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              Text(
+                                '-\$${totalExpense.toStringAsFixed(2)}',
+                                style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(color: Colors.red),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Row(
-            children: [
-              Expanded(
-                flex: 1,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: IconButton(
-                    icon: const Icon(Icons.chevron_left),
-                    onPressed: _goPreviousPeriod, // Call navigation method
-                    tooltip: 'Previous Period',
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 1,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: IconButton(
-                    icon: Icon(
-                      _showCharts ? Icons.visibility_off : Icons.visibility,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Text(
+                                "Net: ",
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              Text(
+                                netChange < 0
+                                    ? '-\$${netChange.abs().toStringAsFixed(2)}'
+                                    : '\$${netChange.toStringAsFixed(2)}',
+                                style:
+                                    netChange > 0
+                                        ? Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(color: Colors.green)
+                                        : Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(color: Colors.red),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    onPressed: _toggleChartVisibility, // Call navigation method
-                    tooltip: _showCharts ? 'Hide Charts' : 'Show Charts',
                   ),
-                ),
-              ),
-              Expanded(
-                flex: 1,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: IconButton(
-                    icon: Icon(
-                      _toggleToPieChart
-                          ? Icons.bar_chart_rounded
-                          : Icons.pie_chart,
-                    ),
-                    onPressed: _togglePieChart, // Call navigation method
-                    tooltip:
-                        _toggleToPieChart
-                            ? 'Show Bar Charts'
-                            : 'Show Pie Chart',
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 5,
-                child: Text(
-                  currentDateRangeDisplay, // Display the formatted date range
-                  textAlign: TextAlign.center,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child:
-                      DateTime(
-                                _currentReferenceDate.year,
-                                _currentReferenceDate.month,
-                                _currentReferenceDate.day,
-                              ) !=
-                              DateTime(_now.year, _now.month, _now.day)
-                          ? IconButton(
-                            onPressed: _goCurrentDate,
-                            icon: const Icon(Icons.date_range),
-                          )
-                          : SizedBox(width: 24),
-                ),
-              ),
-              Expanded(
-                flex: 1,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    icon: const Icon(Icons.chevron_right),
-                    onPressed: _goNextPeriod, // Call navigation method
-                    tooltip: 'Next Period',
-                  ),
-                ),
-              ),
-            ],
-          ),
 
-          _showCharts
-              ? _toggleToPieChart
-                  ? Row(
+                  Row(
                     children: [
-                      homePieChart(
-                        title: 'Expenses',
-                        pieData: pieChartExpenseData,
-                        totalValue: totalExpense,
-                      ),
-
-                      homePieChart(
-                        title: 'Income',
-                        pieData: pieChartIncomeData,
-                        totalValue: totalIncome,
-                      ),
-                    ],
-                  )
-                  : homePageBarChart(
-                    maxYValueForChart: maxYValueForChart,
-                    chartPoints: chartPoints,
-                  )
-              : SizedBox.shrink(),
-
-          // _showCharts ? Divider(height: 1) : SizedBox.shrink(),
-          Expanded(
-            child:
-                transactionsProvider.transactions.isEmpty
-                    ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text(
-                          'No transactions found for the selected account and period.',
-                          textAlign: TextAlign.center,
+                      Expanded(
+                        flex: 1,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: IconButton(
+                            icon: const Icon(Icons.chevron_left),
+                            onPressed:
+                                _goPreviousPeriod, // Call navigation method
+                            tooltip: 'Previous Period',
+                          ),
                         ),
                       ),
-                    )
-                    : ListView.builder(
-                      itemCount: displayItems.length,
-                      itemBuilder: (ctx, index) {
-                        final item = displayItems[index];
-
-                        if (item is DateSeparatorItem) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
-                              vertical: 8.0,
+                      Expanded(
+                        flex: 1,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: IconButton(
+                            icon: Icon(
+                              _showCharts
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
                             ),
-
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              DateFormat(
-                                'EEE, dd MMM yyyy',
-                              ).format(item.date), // e.g., Mon, 25 Dec 2023
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            onPressed:
+                                _toggleChartVisibility, // Call navigation method
+                            tooltip:
+                                _showCharts ? 'Hide Charts' : 'Show Charts',
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 1,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: IconButton(
+                            icon: Icon(
+                              _toggleToPieChart
+                                  ? Icons.bar_chart_rounded
+                                  : Icons.pie_chart,
                             ),
-                          );
-                          // --- ---
-                        } else if (item is TransactionItem) {
-                          // --- Build TransactionsTile Widget ---
-                          return TransactionsTile(
-                            key: ValueKey(item.transaction.id),
-                            transactionData: item.transaction,
-                            accountName: item.accountName,
-                            categoryTag: item.categoryForDisplay!,
-                            onEdit: () {
-                              _showTransactionsForm(item.transaction);
-                            },
-                            onDelete: (Transactions txToDelete) {
-                              _onDelete(txToDelete);
-                            },
-                          );
-                        }
-                        // final transaction =
-                        //     transactionsProvider.transactions[index];
+                            onPressed:
+                                _togglePieChart, // Call navigation method
+                            tooltip:
+                                _toggleToPieChart
+                                    ? 'Show Bar Charts'
+                                    : 'Show Pie Chart',
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 5,
+                        child: Text(
+                          currentDateRangeDisplay, // Display the formatted date range
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child:
+                              DateTime(
+                                        _currentReferenceDate.year,
+                                        _currentReferenceDate.month,
+                                        _currentReferenceDate.day,
+                                      ) !=
+                                      DateTime(_now.year, _now.month, _now.day)
+                                  ? IconButton(
+                                    onPressed: _goCurrentDate,
+                                    icon: const Icon(Icons.date_range),
+                                  )
+                                  : SizedBox(width: 24),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 1,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: IconButton(
+                            icon: const Icon(Icons.chevron_right),
+                            onPressed: _goNextPeriod, // Call navigation method
+                            tooltip: 'Next Period',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
 
-                        // final Account associatedAccount = accountProvider
-                        //     .accounts
-                        //     .firstWhere(
-                        //       (acc) => acc.id == transaction.accountId,
-                        //     );
-                        // final Category associatedCategory = categoryData
-                        //     .firstWhere(
-                        //       (cat) => cat.id == transaction.categoryId,
-                        //     );
+                  _showCharts
+                      ? _toggleToPieChart
+                          ? Row(
+                            children: [
+                              homePieChart(
+                                title: 'Expenses',
+                                pieData: pieChartExpenseData,
+                                totalValue: totalExpense,
+                              ),
 
-                        // // --- Return your TransactionsTile widget ---
-                        // return TransactionsTile(
-                        //   key: ValueKey(
-                        //     transaction.id,
-                        //   ), // Good for list performance
-                        //   transactionData: transaction,
-                        //   onEdit: () {
-                        //     // Call the existing method to show the form for editing
-                        //     _showTransactionsForm(transaction);
-                        //   },
-                        //   onDelete: (Transactions transactionToDelete) {
-                        //     // Call the method to handle deletion
-                        //     _onDelete(transactionToDelete);
-                        //   },
-                        //   accountName: associatedAccount.name,
-                        //   categoryTag: associatedCategory,
-                        // );
-                        // // --- ---
-                      },
-                    ),
-          ),
-          // --- End Display Transactions ---
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showTransactionsForm();
-        },
-        tooltip: 'Add Transaction',
-        child: const Icon(Icons.add),
-      ),
+                              homePieChart(
+                                title: 'Income',
+                                pieData: pieChartIncomeData,
+                                totalValue: totalIncome,
+                              ),
+                            ],
+                          )
+                          : homePageBarChart(
+                            maxYValueForChart: maxYValueForChart,
+                            chartPoints: chartPoints,
+                          )
+                      : SizedBox.shrink(),
+
+                  // _showCharts ? Divider(height: 1) : SizedBox.shrink(),
+                  Expanded(
+                    child:
+                        transactionsProvider.transactions.isEmpty
+                            ? const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Text(
+                                  'No transactions found for the selected account and period.',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            )
+                            : ListView.builder(
+                              itemCount: displayItems.length,
+                              itemBuilder: (ctx, index) {
+                                final item = displayItems[index];
+
+                                if (item is DateSeparatorItem) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16.0,
+                                      vertical: 8.0,
+                                    ),
+
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      DateFormat('EEE, dd MMM yyyy').format(
+                                        item.date,
+                                      ), // e.g., Mon, 25 Dec 2023
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  );
+                                  // --- ---
+                                } else if (item is TransactionItem) {
+                                  // --- Build TransactionsTile Widget ---
+                                  return TransactionsTile(
+                                    key: ValueKey(item.transaction.id),
+                                    transactionData: item.transaction,
+                                    accountName: item.accountName,
+                                    categoryTag: item.categoryForDisplay!,
+                                    onEdit: () {
+                                      _showTransactionsForm(item.transaction);
+                                    },
+                                    onDelete: (Transactions txToDelete) {
+                                      _onDelete(txToDelete);
+                                    },
+                                  );
+                                }
+                                // final transaction =
+                                //     transactionsProvider.transactions[index];
+
+                                // final Account associatedAccount = accountProvider
+                                //     .accounts
+                                //     .firstWhere(
+                                //       (acc) => acc.id == transaction.accountId,
+                                //     );
+                                // final Category associatedCategory = categoryData
+                                //     .firstWhere(
+                                //       (cat) => cat.id == transaction.categoryId,
+                                //     );
+
+                                // // --- Return your TransactionsTile widget ---
+                                // return TransactionsTile(
+                                //   key: ValueKey(
+                                //     transaction.id,
+                                //   ), // Good for list performance
+                                //   transactionData: transaction,
+                                //   onEdit: () {
+                                //     // Call the existing method to show the form for editing
+                                //     _showTransactionsForm(transaction);
+                                //   },
+                                //   onDelete: (Transactions transactionToDelete) {
+                                //     // Call the method to handle deletion
+                                //     _onDelete(transactionToDelete);
+                                //   },
+                                //   accountName: associatedAccount.name,
+                                //   categoryTag: associatedCategory,
+                                // );
+                                // // --- ---
+                              },
+                            ),
+                  ),
+                  // --- End Display Transactions ---
+                ],
+              ),
+      floatingActionButton:
+          accountData.isEmpty
+              ? SizedBox.shrink()
+              : FloatingActionButton(
+                onPressed: () {
+                  _showTransactionsForm();
+                },
+                tooltip: 'Add Transaction',
+                child: const Icon(Icons.add),
+              ),
     );
   }
 }

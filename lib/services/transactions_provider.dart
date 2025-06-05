@@ -72,6 +72,24 @@ class TransactionsProvider with ChangeNotifier {
     return ((dayOfMonth - 1) / 7).floor() + 1;
   }
 
+  Future<Transactions?> fetchTransactionById({
+    required int transactionId,
+  }) async {
+    print("FETCH BY ID CALLED");
+    try {
+      Transactions? _specificTransaction = await _dbService.getTransactionById(
+        transactionId,
+      );
+      print(
+        "Fetched Transaction: ID=${_specificTransaction?.id}, Type=${_specificTransaction?.type}, PeerID=${_specificTransaction?.transferPeerTransactionId}",
+      );
+      return _specificTransaction;
+    } catch (e) {
+      print("ERROR");
+      return null;
+    }
+  }
+
   Future<void> fetchTransactions({
     List<int>? accountIds,
     DateTime? startDate,
@@ -537,6 +555,49 @@ class TransactionsProvider with ChangeNotifier {
     } catch (e) {
       print("Error adding transfer in provider: $e");
       // _setError("An error occurred during transfer.");
+      return false;
+    } finally {
+      // _isLoading = false; notifyListeners();
+    }
+  }
+
+  Future<bool> updateTransfer({
+    required int
+    originalOutgoingTransactionId, // ID of the transaction being "edited"
+    required int newFromAccountId,
+    required int newToAccountId,
+    required double newAmount,
+    required DateTime newTimestamp,
+    String? newDescription,
+    required int newTransferCategoryId,
+  }) async {
+    // _isLoading = true; notifyListeners();
+    try {
+      bool success = await _dbService.updateTransfer(
+        originalOutgoingTransactionId: originalOutgoingTransactionId,
+        newFromAccountId: newFromAccountId,
+        newToAccountId: newToAccountId,
+        newAmount: newAmount,
+        newTimestamp: newTimestamp,
+        newDescription: newDescription,
+        newTransferCategoryId: newTransferCategoryId,
+      );
+      if (success) {
+        // Re-fetch all data to reflect the deletion of old and creation of new
+        await fetchTransactions(
+          accountIds: _currentAccountIds,
+          startDate: _currentStartDate,
+          endDate: _currentEndDate,
+          periodForChart: _currentPeriodForChart,
+          allCategories: _currentAllCategories,
+        );
+        return true;
+      }
+      // _setError("Failed to update transfer.");
+      return false;
+    } catch (e) {
+      print("Error updating transfer in Provider: $e");
+      // _setError("An error occurred while updating transfer.");
       return false;
     } finally {
       // _isLoading = false; notifyListeners();
