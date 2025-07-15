@@ -3,26 +3,33 @@ import 'package:flutter/material.dart';
 // Optional: import 'package:google_fonts/google_fonts.dart'; // Uncomment if using Google Fonts
 
 // --- Core Color Definitions ---
-const Color primaryLight = Color(0xFF0066FF);
+const Color primaryLight = Color.fromARGB(255, 168, 142, 103);
 const Color secondaryLight = Color(0xFF4FC3F7);
-const Color backgroundLight = Color(0xFFF2F2F7); // Intended for Scaffold background
-const Color surfaceLight = Colors.white;       // Intended for Cards, AppBars, Dialogs
+const Color backgroundLight = Color(
+  0xFFF2F2F7,
+); // Intended for Scaffold background
+const Color surfaceLight = Colors.white; // Intended for Cards, AppBars, Dialogs
 const Color onPrimaryLight = Colors.white;
 const Color onSecondaryLight = Colors.black;
 // const Color onBackgroundLight = Colors.black; // Keep for reference, but use onSurfaceLight
-const Color onSurfaceLight = Colors.black;     // Primary text color on light surfaces/backgrounds
+const Color onSurfaceLight =
+    Colors.black; // Primary text color on light surfaces/backgrounds
 const Color errorLight = Colors.redAccent;
 
 const Color primaryDark = Color(0xFF0A84FF);
 const Color secondaryDark = Color(0xFF64D2FF);
-const Color backgroundDark = Color(0xFF000000); // Intended for Scaffold background
-const Color surfaceDark = Color(0xFF1C1C1E);   // Intended for Cards, AppBars, Dialogs
+const Color backgroundDark = Color(
+  0xFF000000,
+); // Intended for Scaffold background
+const Color surfaceDark = Color(
+  0xFF1C1C1E,
+); // Intended for Cards, AppBars, Dialogs
 const Color onPrimaryDark = Colors.white;
 const Color onSecondaryDark = Colors.black;
 // const Color onBackgroundDark = Colors.white; // Keep for reference, but use onSurfaceDark
-const Color onSurfaceDark = Colors.white;      // Primary text color on dark surfaces/backgrounds
+const Color onSurfaceDark =
+    Colors.white; // Primary text color on dark surfaces/backgrounds
 const Color errorDark = Color(0xFFFF453A);
-
 
 // --- Light Theme Definition ---
 
@@ -49,7 +56,8 @@ final ThemeData lightMode = ThemeData(
   scaffoldBackgroundColor: backgroundLight, // Correct: Use the constant
 
   appBarTheme: AppBarTheme(
-    backgroundColor: lightColorScheme.surface, // Correct: Use surface for AppBar
+    backgroundColor:
+        lightColorScheme.surface, // Correct: Use surface for AppBar
     foregroundColor: lightColorScheme.onSurface,
     elevation: 1.0,
     iconTheme: IconThemeData(color: lightColorScheme.primary),
@@ -63,10 +71,10 @@ final ThemeData lightMode = ThemeData(
 
   // Update TextTheme to use onSurface
   textTheme: ThemeData.light().textTheme.apply(
-        bodyColor: lightColorScheme.onSurface, // Correct: Use onSurface
-        displayColor: lightColorScheme.onSurface, // Correct: Use onSurface
-        // fontFamily: GoogleFonts.lato().fontFamily,
-      ),
+    bodyColor: lightColorScheme.onSurface, // Correct: Use onSurface
+    displayColor: lightColorScheme.onSurface, // Correct: Use onSurface
+    // fontFamily: GoogleFonts.lato().fontFamily,
+  ),
 
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
@@ -76,14 +84,14 @@ final ThemeData lightMode = ThemeData(
     ),
   ),
   textButtonTheme: TextButtonThemeData(
-    style: TextButton.styleFrom(
-      foregroundColor: lightColorScheme.primary,
-    ),
+    style: TextButton.styleFrom(foregroundColor: lightColorScheme.primary),
   ),
   outlinedButtonTheme: OutlinedButtonThemeData(
     style: OutlinedButton.styleFrom(
       foregroundColor: lightColorScheme.primary,
-      side: BorderSide(color: lightColorScheme.primary.withAlpha((0.5 * 255).round())),
+      side: BorderSide(
+        color: lightColorScheme.primary.withAlpha((0.5 * 255).round()),
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
   ),
@@ -103,22 +111,27 @@ final ThemeData lightMode = ThemeData(
   inputDecorationTheme: InputDecorationTheme(
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: lightColorScheme.primary.withAlpha((0.3 * 255).round())),
+      borderSide: BorderSide(
+        color: lightColorScheme.primary.withAlpha((0.3 * 255).round()),
+      ),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: lightColorScheme.primary.withAlpha((0.3 * 255).round())),
+      borderSide: BorderSide(
+        color: lightColorScheme.primary.withAlpha((0.3 * 255).round()),
+      ),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
       borderSide: BorderSide(color: lightColorScheme.primary, width: 2.0),
     ),
-    labelStyle: TextStyle(color: lightColorScheme.onSurface.withAlpha((0.7 * 255).round())),
+    labelStyle: TextStyle(
+      color: lightColorScheme.onSurface.withAlpha((0.7 * 255).round()),
+    ),
   ),
 
   visualDensity: VisualDensity.adaptivePlatformDensity,
 );
-
 
 // --- Dark Theme Definition ---
 
@@ -133,7 +146,7 @@ const ColorScheme darkColorScheme = ColorScheme.dark(
   onSurface: onSurfaceDark, // Use onSurface for text on components/background
   onError: Colors.black,
   brightness: Brightness.dark,
-   // No 'background' or 'onBackground' here
+  // No 'background' or 'onBackground' here
 );
 
 // Define the full ThemeData for dark mode
@@ -159,10 +172,10 @@ final ThemeData darkMode = ThemeData(
 
   // Update TextTheme to use onSurface
   textTheme: ThemeData.dark().textTheme.apply(
-        bodyColor: darkColorScheme.onSurface, // Correct: Use onSurface
-        displayColor: darkColorScheme.onSurface, // Correct: Use onSurface
-        // fontFamily: GoogleFonts.lato().fontFamily,
-      ),
+    bodyColor: darkColorScheme.onSurface, // Correct: Use onSurface
+    displayColor: darkColorScheme.onSurface, // Correct: Use onSurface
+    // fontFamily: GoogleFonts.lato().fontFamily,
+  ),
 
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
@@ -172,14 +185,14 @@ final ThemeData darkMode = ThemeData(
     ),
   ),
   textButtonTheme: TextButtonThemeData(
-    style: TextButton.styleFrom(
-      foregroundColor: darkColorScheme.primary,
-    ),
+    style: TextButton.styleFrom(foregroundColor: darkColorScheme.primary),
   ),
   outlinedButtonTheme: OutlinedButtonThemeData(
     style: OutlinedButton.styleFrom(
       foregroundColor: darkColorScheme.primary,
-      side: BorderSide(color: darkColorScheme.primary.withAlpha((0.7 * 255).round())),
+      side: BorderSide(
+        color: darkColorScheme.primary.withAlpha((0.7 * 255).round()),
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
   ),
@@ -197,20 +210,28 @@ final ThemeData darkMode = ThemeData(
   ),
 
   inputDecorationTheme: InputDecorationTheme(
-     border: OutlineInputBorder(
+    border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: darkColorScheme.primary.withAlpha((0.3 * 255).round())),
+      borderSide: BorderSide(
+        color: darkColorScheme.primary.withAlpha((0.3 * 255).round()),
+      ),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: darkColorScheme.primary.withAlpha((0.3 * 255).round())),
+      borderSide: BorderSide(
+        color: darkColorScheme.primary.withAlpha((0.3 * 255).round()),
+      ),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
       borderSide: BorderSide(color: darkColorScheme.primary, width: 2.0),
     ),
-    labelStyle: TextStyle(color: darkColorScheme.onSurface.withAlpha((0.7 * 255).round())),
-    hintStyle: TextStyle(color: darkColorScheme.onSurface.withAlpha((0.5 * 255).round())),
+    labelStyle: TextStyle(
+      color: darkColorScheme.onSurface.withAlpha((0.7 * 255).round()),
+    ),
+    hintStyle: TextStyle(
+      color: darkColorScheme.onSurface.withAlpha((0.5 * 255).round()),
+    ),
   ),
 
   visualDensity: VisualDensity.adaptivePlatformDensity,
